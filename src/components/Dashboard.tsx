@@ -1,11 +1,14 @@
+'use client';
 
 import React, { useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import Sidebar from './Sidebar';
 import StreamTable from './StreamTable';
+import { useAuth } from '../contexts/AuthContext';
 
 const Dashboard: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { isDevelopmentMode } = useAuth();
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
@@ -33,6 +36,15 @@ const Dashboard: React.FC = () => {
 
         {/* Main Content */}
         <main className="p-6">
+          {isDevelopmentMode && (
+            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-blue-800 mb-2">🚧 Development Mode Active</h3>
+              <p className="text-sm text-blue-700">
+                You&apos;re currently in development mode with login-only functionality. 
+                Stream data and analytics require backend API configuration.
+              </p>
+            </div>
+          )}
           <StreamTable />
         </main>
       </div>
@@ -40,4 +52,4 @@ const Dashboard: React.FC = () => {
   );
 };
 
-export default Dashboard;
+export default Dashboard; 

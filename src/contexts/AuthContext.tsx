@@ -1,54 +1,67 @@
+'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, ReactNode } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useAuthStore } from '../store/auth';
 
 interface AuthContextType {
+  user: any;
   isAuthenticated: boolean;
-  user: { name: string; email: string } | null;
-  login: (email: string, password: string) => Promise<void>;
+  isLoading: boolean;
+  login: (token: string, user: any) => void;
   logout: () => void;
+  isDevelopmentMode: boolean;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | null>(null);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+const PUBLIC_ROUTES = ['/login'];
 
-  useEffect(() => {
-    // Simulate checking for stored auth token
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      setIsAuthenticated(true);
-      setUser({ name: 'John Doe', email: 'john@example.com' });
-    }
-  }, []);
+const isDevelopment = process.env.NODE_ENV === 'development';
 
-  const login = async (email: string, password: string) => {
-    // Simulate login
-    console.log('Login attempt:', { email, password });
-    localStorage.setItem('auth_token', 'mock_jwt_token');
-    setIsAuthenticated(true);
-    setUser({ name: 'John Doe', email });
-  };
-
-  const logout = () => {
-    localStorage.removeItem('auth_token');
-    setIsAuthenticated(false);
-    setUser(null);
-    console.log('User logged out - cookie invalidated');
-  };
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const store = useAuthStore();
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
+    <AuthContext.Provider 
+      value={{ 
+        user: store.user, 
+        isAuthenticated: store.isAuthenticated, 
+        isLoading: store.isLoading,
+        login: store.login,
+        logout: store.logout,
+        isDevelopmentMode: isDevelopment
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
-export const useAuth = () => {
+export function useAuth(requireAuth: boolean = true) {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
+
+  if (context.isDevelopmentMode) {
+    return context;
+  }
+
+  if (!isDevelopment) {
+    const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
+
+    if (requireAuth && !context.isAuthenticated && !isPublicRoute) {
+      router.replace(`/login?redirect=${pathname}`);
+    }
+
+    if (context.isAuthenticated && isPublicRoute) {
+      router.replace('/dashboard');
+    }
+  }
+
   return context;
-};
+} 
