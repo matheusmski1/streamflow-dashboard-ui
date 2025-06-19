@@ -3,35 +3,109 @@
 
 export const API_CONFIG = {
   // Base API URL - update this to match your backend
-  BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api',
+  BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1',
   
   // Authentication endpoints
   AUTH: {
     LOGIN: '/auth/login',
-    LOGOUT: '/auth/logout',
+    REGISTER: '/auth/register',
     VERIFY: '/auth/verify',
-    REFRESH: '/auth/refresh',
+  },
+  
+  // Orders endpoints
+  ORDERS: {
+    LIST: '/orders',
+    CREATE: '/orders',
+    MY_ORDERS: '/orders/my-orders',
+    BY_ID: (id: string) => `/orders/${id}`,
+    UPDATE: (id: string) => `/orders/${id}`,
+    DELETE: (id: string) => `/orders/${id}`,
+  },
+  
+  // Users endpoints
+  USERS: {
+    LIST: '/users',
+    CREATE: '/users',
+    BY_ID: (id: string) => `/users/${id}`,
+    UPDATE: (id: string) => `/users/${id}`,
+    DELETE: (id: string) => `/users/${id}`,
   },
   
   // Stream endpoints
   STREAM: {
-    EVENTS: '/stream/events', // Server-Sent Events endpoint
-    STATS: '/stream/stats',
+    EVENTS: '/stream', // Server-Sent Events endpoint
+    PING: '/stream/ping',
   },
-  
-  // Analytics endpoints
-  ANALYTICS: {
-    DASHBOARD: '/analytics/dashboard',
-    PERFORMANCE: '/analytics/performance',
-    ENGAGEMENT: '/analytics/engagement',
-  },
-  
-  // User endpoints
-  USER: {
-    PROFILE: '/user/profile',
-    SETTINGS: '/user/settings',
-  }
 };
+
+// Order types
+export interface Order {
+  id: string;
+  customer: string;
+  product: string;
+  quantity: number;
+  price: number;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED';
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateOrderDto {
+  customer: string;
+  product: string;
+  quantity: number;
+  price: number;
+  status?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED';
+  title: string;
+  description?: string;
+  amount: number;
+  userId: string;
+}
+
+export interface UpdateOrderDto {
+  customer?: string;
+  product?: string;
+  quantity?: number;
+  price?: number;
+  status?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED';
+  title?: string;
+  description?: string;
+  amount?: number;
+}
+
+// User types
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: 'USER' | 'ADMIN';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LoginDto {
+  email: string;
+  password: string;
+}
+
+export interface RegisterDto {
+  name: string;
+  email: string;
+  password: string;
+}
+
+// Stream types
+export interface StreamEvent {
+  id: string;
+  timestamp: string;
+  eventType: 'USER_ACTION' | 'SYSTEM_EVENT' | 'ERROR' | 'WARNING';
+  userId: string;
+  action: string;
+  value: number;
+  location: string;
+  createdAt: string;
+}
 
 // API utility functions
 export class ApiClient {
@@ -77,57 +151,99 @@ export class ApiClient {
   }
 
   // Authentication methods
-  async login(email: string, password: string) {
-    return this.request(API_CONFIG.AUTH.LOGIN, {
+  async login(loginData: LoginDto) {
+    return this.request<{ access_token: string; user: User }>(API_CONFIG.AUTH.LOGIN, {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(loginData),
     });
   }
 
-  async logout() {
-    return this.request(API_CONFIG.AUTH.LOGOUT, {
+  async register(registerData: RegisterDto) {
+    return this.request<{ access_token: string; user: User }>(API_CONFIG.AUTH.REGISTER, {
       method: 'POST',
+      body: JSON.stringify(registerData),
     });
   }
 
   async verifyToken() {
-    return this.request(API_CONFIG.AUTH.VERIFY);
-  }
-
-  async refreshToken() {
-    return this.request(API_CONFIG.AUTH.REFRESH, {
+    return this.request<{ user: User; message: string }>(API_CONFIG.AUTH.VERIFY, {
       method: 'POST',
     });
   }
 
-  // Analytics methods
-  async getAnalyticsDashboard() {
-    return this.request(API_CONFIG.ANALYTICS.DASHBOARD);
+  // Orders methods
+  async getOrders(params?: { page?: number; limit?: number; search?: string }) {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.append('page', params.page.toString());
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.search) searchParams.append('search', params.search);
+    
+    const queryString = searchParams.toString();
+    const endpoint = queryString ? `${API_CONFIG.ORDERS.LIST}?${queryString}` : API_CONFIG.ORDERS.LIST;
+    
+    return this.request<Order[]>(endpoint);
   }
 
-  async getPerformanceMetrics() {
-    return this.request(API_CONFIG.ANALYTICS.PERFORMANCE);
+  async getMyOrders() {
+    return this.request<Order[]>(API_CONFIG.ORDERS.MY_ORDERS);
   }
 
-  async getEngagementMetrics() {
-    return this.request(API_CONFIG.ANALYTICS.ENGAGEMENT);
+  async createOrder(orderData: CreateOrderDto) {
+    return this.request<Order>(API_CONFIG.ORDERS.CREATE, {
+      method: 'POST',
+      body: JSON.stringify(orderData),
+    });
+  }
+
+  async getOrder(id: string) {
+    return this.request<Order>(API_CONFIG.ORDERS.BY_ID(id));
+  }
+
+  async updateOrder(id: string, orderData: UpdateOrderDto) {
+    return this.request<Order>(API_CONFIG.ORDERS.UPDATE(id), {
+      method: 'PATCH',
+      body: JSON.stringify(orderData),
+    });
+  }
+
+  async deleteOrder(id: string) {
+    return this.request<{ message: string }>(API_CONFIG.ORDERS.DELETE(id), {
+      method: 'DELETE',
+    });
+  }
+
+  // Users methods
+  async getUsers() {
+    return this.request<User[]>(API_CONFIG.USERS.LIST);
+  }
+
+  async getUser(id: string) {
+    return this.request<User>(API_CONFIG.USERS.BY_ID(id));
+  }
+
+  async createUser(userData: RegisterDto) {
+    return this.request<User>(API_CONFIG.USERS.CREATE, {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  }
+
+  async updateUser(id: string, userData: Partial<RegisterDto>) {
+    return this.request<User>(API_CONFIG.USERS.UPDATE(id), {
+      method: 'PATCH',
+      body: JSON.stringify(userData),
+    });
+  }
+
+  async deleteUser(id: string) {
+    return this.request<{ message: string }>(API_CONFIG.USERS.DELETE(id), {
+      method: 'DELETE',
+    });
   }
 
   // Stream methods
-  async getStreamStats() {
-    return this.request(API_CONFIG.STREAM.STATS);
-  }
-
-  // User methods
-  async getUserProfile() {
-    return this.request(API_CONFIG.USER.PROFILE);
-  }
-
-  async updateUserSettings(settings: Record<string, unknown>) {
-    return this.request(API_CONFIG.USER.SETTINGS, {
-      method: 'PUT',
-      body: JSON.stringify(settings),
-    });
+  async pingStream() {
+    return this.request<{ message: string; timestamp: string; status: string }>(API_CONFIG.STREAM.PING);
   }
 }
 
@@ -146,14 +262,29 @@ export class StreamEventSource {
   connect(
     onMessage: (event: MessageEvent) => void,
     onError?: (error: Event) => void,
-    onOpen?: (event: Event) => void
+    onOpen?: (event: Event) => void,
+    options?: { type?: string; userOnly?: boolean }
   ): void {
     try {
-      // Add auth token to URL for SSE
+      // Add auth token and parameters to URL for SSE
       const token = localStorage.getItem('auth_token');
-      const urlWithAuth = token ? `${this.url}?token=${token}` : this.url;
+      const params = new URLSearchParams();
       
-      this.eventSource = new EventSource(urlWithAuth);
+      if (token) {
+        params.append('token', token);
+      }
+      
+      if (options?.type) {
+        params.append('type', options.type);
+      }
+      
+      if (options?.userOnly) {
+        params.append('userOnly', 'true');
+      }
+      
+      const urlWithParams = params.toString() ? `${this.url}?${params.toString()}` : this.url;
+      
+      this.eventSource = new EventSource(urlWithParams);
       
       this.eventSource.onopen = (event) => {
         console.log('Stream connected');

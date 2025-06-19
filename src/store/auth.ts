@@ -6,6 +6,9 @@ interface User {
   id: string
   email: string
   name: string
+  role: 'USER' | 'ADMIN'
+  createdAt: string
+  updatedAt: string
 }
 
 interface AuthState {
@@ -21,7 +24,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       isAuthenticated: false,
       isLoading: false, // Começa como false em desenvolvimento

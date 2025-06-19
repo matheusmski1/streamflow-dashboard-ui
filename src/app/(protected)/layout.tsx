@@ -10,10 +10,20 @@ export default function ProtectedLayout({
   children: React.ReactNode
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isLoading, isDevelopmentMode } = useAuth()
 
-  if (!isAuthenticated) {
-    return null // O useAuth já cuida do redirecionamento
+  // Mostra loading enquanto verifica autenticação
+  if (isLoading && !isDevelopmentMode) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  // Se não está autenticado e não está em desenvolvimento, não renderiza nada (redirecionamento acontece no useAuth)
+  if (!isAuthenticated && !isDevelopmentMode) {
+    return null
   }
 
   return (

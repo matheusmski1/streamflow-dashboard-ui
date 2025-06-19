@@ -1,10 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import React, { useState, useEffect } from 'react';
 import { Menu, X, Settings, User, Shield, Bell, Palette } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { useAuth } from '@/contexts/AuthContext';
+import { apiClient, User as UserType, RegisterDto } from '@/lib/api';
+
+interface UserFormData {
+  name: string;
+  email: string;
+  password: string;
+}
 
 export default function SettingsPage() {
   return (
@@ -15,8 +22,103 @@ export default function SettingsPage() {
 }
 
 function SettingsContent() {
-  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [users, setUsers] = useState<UserType[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const { user: currentUser, isDevelopmentMode } = useAuth();
+
+  const [formData, setFormData] = useState<UserFormData>({
+    name: '',
+    email: '',
+    password: ''
+  });
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setIsLoading(true);
+        
+        if (isDevelopmentMode) {
+          // Simula alguns usuários em desenvolvimento
+          const mockUsers: UserType[] = [
+            {
+              id: 'dev-user-1',
+              name: 'Admin User',
+              email: 'admin@example.com',
+              role: 'ADMIN',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            {
+              id: 'dev-user-2',
+              name: 'João Silva',
+              email: 'joao@example.com',
+              role: 'USER',
+              createdAt: new Date(Date.now() - 86400000).toISOString(),
+              updatedAt: new Date(Date.now() - 86400000).toISOString(),
+            },
+            {
+              id: 'dev-user-3',
+              name: 'Maria Santos',
+              email: 'maria@example.com',
+              role: 'USER',
+              createdAt: new Date(Date.now() - 172800000).toISOString(),
+              updatedAt: new Date(Date.now() - 172800000).toISOString(),
+            }
+          ];
+          setUsers(mockUsers);
+          return;
+        }
+
+        // Busca usuários reais
+        const response = await apiClient.getUsers();
+        setUsers(response);
+      } catch (error) {
+        console.error('Failed to fetch users:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, [isDevelopmentMode]);
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (isDevelopmentMode) {
+        // Simula criação em desenvolvimento
+        const newUser: UserType = {
+          id: 'dev-user-' + Date.now(),
+          name: formData.name,
+          email: formData.email,
+          role: 'USER',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        setUsers(prev => [newUser, ...prev]);
+        setFormData({ name: '', email: '', password: '' });
+        setShowCreateForm(false);
+        return;
+      }
+
+      // Cria usuário real
+      const userData: RegisterDto = {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password
+      };
+      
+      const newUser = await apiClient.createUser(userData);
+      setUsers(prev => [newUser, ...prev]);
+      setFormData({ name: '', email: '', password: '' });
+      setShowCreateForm(false);
+    } catch (error) {
+      console.error('Failed to create user:', error);
+      alert('Failed to create user: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
@@ -56,7 +158,7 @@ function SettingsContent() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
                   <input 
                     type="text" 
-                    defaultValue={user?.name || 'John Doe'}
+                    defaultValue={currentUser?.name || 'John Doe'}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -64,7 +166,7 @@ function SettingsContent() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                   <input 
                     type="email" 
-                    defaultValue={user?.email || 'john@example.com'}
+                    defaultValue={currentUser?.email || 'john@example.com'}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
