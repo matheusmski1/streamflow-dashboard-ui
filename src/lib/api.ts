@@ -122,14 +122,27 @@ export class ApiClient {
   }
 
   private getAuthHeaders(): Record<string, string> {
-    // Read JWT from cookie (set via AuthStore). HttpOnly cookies cannot be read, but fallback to client cookie.
+    // Para cookies HttpOnly: o token NÃO pode ser lido via JavaScript
+    // O cookie será enviado automaticamente via credentials: 'include'
+    
     try {
-      let token: string | undefined;
+      // Tenta ler apenas cookies acessíveis (não HttpOnly)
       if (typeof window !== 'undefined') {
-        token = localStorage.getItem('access_token') || Cookies.get('access_token');
+        const token = Cookies.get('access_token');
+        
+        if (token && token !== 'undefined') {
+          console.log('📤 Token acessível encontrado, enviando via header');
+          return { Authorization: `Bearer ${token}` };
+        }
       }
-      return token ? { Authorization: `Bearer ${token}` } : {};
-    } catch (_) {
+      
+      // Se não conseguiu ler o token, significa que é HttpOnly
+      // O navegador enviará automaticamente via credentials: 'include'
+      console.log('🍪 Cookie HttpOnly será enviado automaticamente');
+      return {};
+      
+    } catch (error) {
+      console.log('🍪 Usando apenas credentials: include devido a erro');
       return {};
     }
   }
@@ -150,8 +163,21 @@ export class ApiClient {
       },
     };
 
+    // Debug: Log da requisição para verificar se cookies estão sendo enviados
+    console.log('🔍 Fazendo requisição para:', url);
+    console.log('🍪 Credentials include:', config.credentials);
+    console.log('📋 Headers:', config.headers);
+    
+    // Log dos cookies disponíveis
+    if (typeof window !== 'undefined') {
+      console.log('🍪 Cookies disponíveis:', document.cookie);
+    }
+
     try {
       const response = await fetch(url, config);
+      
+      console.log('📨 Response status:', response.status);
+      console.log('📨 Response headers:', Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -272,6 +298,7 @@ export class ApiClient {
     
     const response = await fetch(streamUrl, {
       method: 'GET',
+      credentials: 'include', // Para enviar HttpOnly cookies
       headers: {
         'Content-Type': 'application/json',
         ...this.getAuthHeaders(),
@@ -307,7 +334,7 @@ export class StreamEventSource {
   ): void {
     try {
       // Add auth token and parameters to URL for SSE
-      const token = localStorage.getItem('access_token');
+      const token = Cookies.get('access_token');
       const params = new URLSearchParams();
       
       if (token) {

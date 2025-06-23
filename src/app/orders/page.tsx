@@ -26,42 +26,70 @@ export default function OrdersPage() {
 }
 
 function OrdersContent() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
-  const { user, isDevelopmentMode } = useAuth();
-
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState<OrderFormData>({
-    customer: '',
-    product: '',
-    quantity: 1,
-    price: 0,
-    title: '',
-    description: '',
-    amount: 0
+    customer: '', product: '', quantity: 1, price: 0, title: '', description: '', amount: 0
   });
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Debug: verificar se a aplicação está em modo desenvolvimento
+  const isDevelopmentMode = process.env.NODE_ENV === 'development';
+
+  // Debug: Log quando o componente é montado
+  useEffect(() => {
+    console.log('📱 OrdersContent component mounted');
+    console.log('👤 User:', user);
+    console.log('🌍 Environment:', {
+      NODE_ENV: process.env.NODE_ENV,
+      API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
+      isDevelopment: isDevelopmentMode
+    });
+  }, []);
+
+  // Debug: Log sempre que orders mudar
+  useEffect(() => {
+    console.log('📦 Orders state updated:', {
+      count: orders.length,
+      orders: orders.length > 0 ? orders : 'Empty array',
+      isLoading
+    });
+  }, [orders, isLoading]);
+
+  const updateFormData = (updates: Partial<OrderFormData>) => {
+    setFormData(prev => {
+      const updated = { ...prev, ...updates };
+      // Auto-calculate amount when price or quantity changes
+      if ('price' in updates || 'quantity' in updates) {
+        updated.amount = updated.price * updated.quantity;
+      }
+      return updated;
+    });
+  };
 
   useEffect(() => {
     fetchOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, searchTerm]);
 
-  // Calcula o amount quando price ou quantity muda
-  useEffect(() => {
-    setFormData(prev => ({
-      ...prev,
-      amount: prev.price * prev.quantity
-    }));
-  }, [formData.price, formData.quantity]);
-
   const fetchOrders = async () => {
     try {
       setIsLoading(true);
+      
+      console.log('🔍 Fetching orders...');
+      console.log('📊 Current environment:', {
+        isDevelopment: isDevelopmentMode,
+        apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL,
+        nodeEnv: process.env.NODE_ENV,
+        currentPage,
+        searchTerm
+      });
       
       if (isDevelopmentMode) {
         // Simula alguns pedidos em desenvolvimento
@@ -89,22 +117,41 @@ function OrdersContent() {
             updatedAt: new Date(Date.now() - 86400000).toISOString(),
           }
         ];
+        console.log('✅ Using mock orders for development:', mockOrders);
         setOrders(mockOrders);
         setTotalPages(1);
         return;
       }
 
       // Busca pedidos reais
-      const { orders: fetchedOrders, total } = await apiClient.getOrders({
+      console.log('🌐 Fetching real orders from API...');
+      const result = await apiClient.getOrders({
         page: currentPage,
         limit: 10,
         search: searchTerm
       });
 
-      setOrders(fetchedOrders);
-      setTotalPages(Math.max(1, Math.ceil(total / 10)));
+      console.log('✅ Orders API response:', result);
+      console.log('📦 Orders received:', result.orders?.length || 0);
+      console.log('📊 Total count:', result.total);
+
+      // Validação extra dos dados
+      if (result && Array.isArray(result.orders)) {
+        console.log('✅ Orders data is valid array');
+        setOrders(result.orders);
+        setTotalPages(Math.max(1, Math.ceil((result.total || result.orders.length) / 10)));
+      } else {
+        console.warn('⚠️ Invalid orders data structure:', result);
+        setOrders([]);
+        setTotalPages(1);
+      }
     } catch (error) {
-      console.error('Failed to fetch orders:', error);
+      console.error('❌ Failed to fetch orders:', error);
+      // Log mais detalhado do erro
+      if (error instanceof Error) {
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error stack:', error.stack);
+      }
       // Em caso de erro, garantir que orders seja um array vazio
       setOrders([]);
     } finally {
@@ -205,6 +252,7 @@ function OrdersContent() {
 
   const startEdit = (order: Order) => {
     setEditingOrder(order);
+    const calculatedAmount = order.price * order.quantity;
     setFormData({
       customer: order.customer,
       product: order.product,
@@ -212,7 +260,7 @@ function OrdersContent() {
       price: order.price,
       title: order.customer, // Usando customer como title por enquanto
       description: '', // Backend não retorna description
-      amount: order.price * order.quantity
+      amount: calculatedAmount
     });
     setShowCreateForm(true);
   };
@@ -322,51 +370,72 @@ function OrdersContent() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {orders.map((order, index) => (
-                      <tr key={order.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          #{(order.id || '').slice(-8)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.customer}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.product}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.quantity}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          ${order.price.toFixed(2)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          ${(order.price * order.quantity).toFixed(2)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
-                            {order.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {new Date(order.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => startEdit(order)}
-                              className="text-blue-600 hover:text-blue-900"
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteOrder(order.id)}
-                              className="text-red-600 hover:text-red-900"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {orders.map((order, index) => {
+                      // Garantir que os valores sejam números válidos
+                      const price = Number(order.price) || 0;
+                      const quantity = Number(order.quantity) || 1;
+                      const total = price * quantity;
+                      
+                      return (
+                        <tr key={order.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            #{(order.id || 'unknown').slice(-8)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {order.customer || 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {order.product || 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {quantity}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ${price.toFixed(2)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            ${total.toFixed(2)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status || 'PENDING')}`}>
+                              {order.status || 'PENDING'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => startEdit(order)}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteOrder(order.id)}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
-                {orders.length === 0 && (
+                {isLoading && (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">Loading orders...</p>
+                  </div>
+                )}
+                {!isLoading && orders.length === 0 && (
                   <div className="text-center py-8">
                     <p className="text-gray-500">No orders found</p>
+                    <p className="text-sm text-gray-400 mt-2">
+                      {searchTerm ? 'Try adjusting your search terms' : 'Create your first order using the button above'}
+                    </p>
                   </div>
                 )}
               </div>
@@ -389,7 +458,7 @@ function OrdersContent() {
                       type="text"
                       required
                       value={formData.customer}
-                      onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
+                      onChange={(e) => updateFormData({ customer: e.target.value })}
                       className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -399,7 +468,7 @@ function OrdersContent() {
                       type="text"
                       required
                       value={formData.product}
-                      onChange={(e) => setFormData({ ...formData, product: e.target.value })}
+                      onChange={(e) => updateFormData({ product: e.target.value })}
                       className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -409,7 +478,7 @@ function OrdersContent() {
                       type="text"
                       required
                       value={formData.title}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      onChange={(e) => updateFormData({ title: e.target.value })}
                       className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -417,7 +486,7 @@ function OrdersContent() {
                     <label className="block text-sm font-medium text-gray-700">Description</label>
                     <textarea
                       value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      onChange={(e) => updateFormData({ description: e.target.value })}
                       className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
                       rows={3}
                     />
@@ -430,7 +499,7 @@ function OrdersContent() {
                         min="1"
                         required
                         value={formData.quantity}
-                        onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
+                        onChange={(e) => updateFormData({ quantity: parseInt(e.target.value) })}
                         className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
@@ -442,7 +511,7 @@ function OrdersContent() {
                         min="0"
                         required
                         value={formData.price}
-                        onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+                        onChange={(e) => updateFormData({ price: parseFloat(e.target.value) })}
                         className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
