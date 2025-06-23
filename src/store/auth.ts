@@ -32,14 +32,23 @@ export const useAuthStore = create<AuthState>()(
       setIsAuthenticated: (value) => set({ isAuthenticated: value }),
       setIsLoading: (value) => set({ isLoading: value }),
       login: (token, user) => {
+        // Salva o token em localStorage para que possa ser lido pelo frontend
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('access_token', token)
+        }
+
+        // Também define um cookie para que o backend possa usá-lo se estiver no mesmo domínio
         Cookies.set('access_token', token, {
           secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict',
+          sameSite: 'lax',
         })
         set({ user, isAuthenticated: true, isLoading: false })
       },
       logout: () => {
         Cookies.remove('access_token')
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('access_token')
+        }
         set({ user: null, isAuthenticated: false, isLoading: false })
       },
     }),

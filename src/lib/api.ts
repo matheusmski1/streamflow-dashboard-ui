@@ -124,8 +124,10 @@ export class ApiClient {
   private getAuthHeaders(): Record<string, string> {
     // Read JWT from cookie (set via AuthStore). HttpOnly cookies cannot be read, but fallback to client cookie.
     try {
-      if (typeof window === 'undefined') return {};
-      const token = Cookies.get('access_token');
+      let token: string | undefined;
+      if (typeof window !== 'undefined') {
+        token = localStorage.getItem('access_token') || Cookies.get('access_token');
+      }
       return token ? { Authorization: `Bearer ${token}` } : {};
     } catch (_) {
       return {};
