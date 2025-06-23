@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Plus, Package, Search, RefreshCw, Edit2, Trash2 } from 'lucide-react';
+import { Menu, X, Plus, Package, Search, RefreshCw, Edit2, Trash2, Activity } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthContext';
@@ -38,6 +38,10 @@ function OrdersContent() {
   });
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // Force re-render key para resolver problemas de hidratação
+  const [renderKey, setRenderKey] = useState(0);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   // Debug: verificar se a aplicação está em modo desenvolvimento
   const isDevelopmentMode = process.env.NODE_ENV === 'development';
@@ -58,9 +62,10 @@ function OrdersContent() {
     console.log('📦 Orders state updated:', {
       count: orders.length,
       orders: orders.length > 0 ? orders : 'Empty array',
-      isLoading
+      isLoading,
+      renderKey
     });
-  }, [orders, isLoading]);
+  }, [orders, isLoading, renderKey]);
 
   const updateFormData = (updates: Partial<OrderFormData>) => {
     setFormData(prev => {
@@ -72,6 +77,87 @@ function OrdersContent() {
       return updated;
     });
   };
+
+  // Função para forçar re-render
+  const forceUpdate = () => {
+    setRenderKey(prev => prev + 1);
+  };
+
+  // Backup/restore dos orders no localStorage para casos extremos
+  const saveOrdersBackup = (ordersData: Order[]) => {
+    try {
+      localStorage.setItem('orders_backup', JSON.stringify({
+        orders: ordersData,
+        timestamp: new Date().toISOString(),
+        page: currentPage,
+        search: searchTerm
+      }));
+    } catch (error) {
+      console.warn('Failed to save orders backup:', error);
+    }
+  };
+
+  const restoreOrdersBackup = () => {
+    try {
+      const backup = localStorage.getItem('orders_backup');
+      if (backup) {
+        const parsed = JSON.parse(backup);
+        const backupAge = Date.now() - new Date(parsed.timestamp).getTime();
+        
+        // Usar backup apenas se for recente (< 5 minutos)
+        if (backupAge < 5 * 60 * 1000 && Array.isArray(parsed.orders)) {
+          console.log('🔄 Restoring orders from backup...');
+          setOrders(parsed.orders);
+          setLastUpdate(new Date(parsed.timestamp));
+          forceUpdate();
+          return true;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to restore orders backup:', error);
+    }
+    return false;
+  };
+
+  // Adiciona um interval para verificar se os dados mudaram (útil em produção)
+  useEffect(() => {
+    if (isDevelopmentMode) return; // Não executar em desenvolvimento
+    
+    let intervalId: NodeJS.Timeout;
+    
+    // Verifica mudanças a cada 30 segundos apenas se não estiver carregando
+    if (!isLoading && orders.length > 0) {
+      intervalId = setInterval(async () => {
+        try {
+          console.log('🔄 Background check for order updates...');
+          const result = await apiClient.getOrders({
+            page: currentPage,
+            limit: 10,
+            search: searchTerm
+          });
+          
+          if (result?.orders && Array.isArray(result.orders)) {
+            // Compara se houve mudanças nos dados
+            const currentIds = orders.map(o => o.id).sort();
+            const newIds = result.orders.map(o => o.id).sort();
+            
+            if (JSON.stringify(currentIds) !== JSON.stringify(newIds)) {
+              console.log('📊 Orders changed, updating state...');
+              setOrders(result.orders);
+              setLastUpdate(new Date());
+              forceUpdate();
+            }
+          }
+        } catch (error) {
+          console.error('Background check failed:', error);
+        }
+      }, 30000); // 30 segundos
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isDevelopmentMode, isLoading, orders, currentPage, searchTerm]);
 
   useEffect(() => {
     fetchOrders();
@@ -138,8 +224,16 @@ function OrdersContent() {
       // Validação extra dos dados
       if (result && Array.isArray(result.orders)) {
         console.log('✅ Orders data is valid array');
-        setOrders(result.orders);
-        setTotalPages(Math.max(1, Math.ceil((result.total || result.orders.length) / 10)));
+        
+        // Força re-render para resolver problemas de hidratação em produção
+        setOrders([]);
+        setTimeout(() => {
+          setOrders(result.orders);
+          setTotalPages(Math.max(1, Math.ceil((result.total || result.orders.length) / 10)));
+          setLastUpdate(new Date());
+          saveOrdersBackup(result.orders);
+          forceUpdate();
+        }, 0);
       } else {
         console.warn('⚠️ Invalid orders data structure:', result);
         setOrders([]);
@@ -152,8 +246,12 @@ function OrdersContent() {
         console.error('❌ Error message:', error.message);
         console.error('❌ Error stack:', error.stack);
       }
-      // Em caso de erro, garantir que orders seja um array vazio
-      setOrders([]);
+      
+      // Tentar restaurar do backup em caso de erro
+      if (!restoreOrdersBackup()) {
+        // Em caso de erro sem backup, garantir que orders seja um array vazio
+        setOrders([]);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -328,15 +426,52 @@ function OrdersContent() {
             {/* Search and Filters */}
             <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Orders List</h3>
-                <button
-                  onClick={fetchOrders}
-                  disabled={isLoading}
-                  className="flex items-center space-x-2 px-3 py-2 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:opacity-50"
-                >
-                  <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
-                  <span>Refresh</span>
-                </button>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Orders List</h3>
+                  {lastUpdate && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Last updated: {lastUpdate.toLocaleTimeString()}
+                    </p>
+                  )}
+                  {!isDevelopmentMode && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      Render #{renderKey} | Orders: {orders.length} | 
+                      {isLoading ? ' Loading...' : ' Ready'}
+                    </p>
+                  )}
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={fetchOrders}
+                    disabled={isLoading}
+                    className="flex items-center space-x-2 px-3 py-2 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:opacity-50"
+                  >
+                    <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+                    <span>Refresh</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      forceUpdate();
+                      fetchOrders();
+                    }}
+                    disabled={isLoading}
+                    className="flex items-center space-x-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                    title="Force refresh if data isn't updating"
+                  >
+                    <Activity size={16} />
+                    <span>Force</span>
+                  </button>
+                  {!isDevelopmentMode && orders.length === 0 && (
+                    <button
+                      onClick={restoreOrdersBackup}
+                      className="flex items-center space-x-2 px-3 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700"
+                      title="Restore from backup if orders are missing"
+                    >
+                      <Package size={16} />
+                      <span>Restore</span>
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="flex items-center space-x-4">
                 <div className="flex-1 relative">
@@ -353,7 +488,7 @@ function OrdersContent() {
             </div>
 
             {/* Orders Table */}
-            <div className="bg-white rounded-lg shadow-md border border-gray-200">
+            <div className="bg-white rounded-lg shadow-md border border-gray-200" key={`orders-table-${renderKey}-${orders.length}`}>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
