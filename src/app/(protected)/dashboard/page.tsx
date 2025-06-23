@@ -73,7 +73,9 @@ export default function DashboardPage() {
         }
 
         // Busca dados reais
-        const ordersData = await apiClient.getOrders();
+        const response = await apiClient.getOrders();
+        // Garantir que sempre seja um array
+        const ordersData = Array.isArray(response) ? response : [];
         setOrders(ordersData);
         
         // Calcula estatísticas
@@ -85,6 +87,8 @@ export default function DashboardPage() {
         setStats({ activeOrders, totalRevenue, completedOrders, pendingOrders });
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
+        // Em caso de erro, garantir que orders seja um array vazio
+        setOrders([]);
       } finally {
         setIsLoading(false);
       }
@@ -190,7 +194,7 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {orders.slice(0, 5).map((order, index) => (
+              {(orders || []).slice(0, 5).map((order, index) => (
                 <tr key={order.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {order.customer}
@@ -218,7 +222,7 @@ export default function DashboardPage() {
               ))}
             </tbody>
           </table>
-          {orders.length === 0 && !isLoading && (
+          {(orders || []).length === 0 && !isLoading && (
             <div className="text-center py-8">
               <Activity className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">No orders yet</h3>

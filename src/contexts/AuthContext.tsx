@@ -4,6 +4,7 @@ import { createContext, useContext, ReactNode, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '../store/auth';
 import { apiClient } from '@/lib/api';
+import Cookies from 'js-cookie';
 
 interface User {
   id: string;
@@ -42,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return; // Em desenvolvimento, não verifica token
       }
 
-      const token = localStorage.getItem('auth_token');
+      const token = Cookies.get('access_token');
       if (!token) {
         store.logout();
         return;
@@ -54,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         store.login(token, response.user);
       } catch (error) {
         console.error('Token verification failed:', error);
-        localStorage.removeItem('auth_token');
+        Cookies.remove('access_token');
         store.logout();
         router.replace('/login');
       } finally {
@@ -73,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading: store.isLoading,
         login: store.login,
         logout: () => {
-          localStorage.removeItem('auth_token');
+          Cookies.remove('access_token');
           store.logout();
           router.replace('/login');
         },

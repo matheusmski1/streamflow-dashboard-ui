@@ -1,18 +1,23 @@
 // API Configuration and Utilities
 // Configure your API endpoints here
 
+import Cookies from 'js-cookie';
+
 export const API_CONFIG = {
-  // Base API URL - update this to match your backend
+  // REST API Base URL - para operações CRUD (Orders, Users, Auth)
   BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1',
   
-  // Authentication endpoints
+  // Streaming Base URL - para Server-Sent Events e WebSocket
+  STREAM_BASE_URL: process.env.NEXT_PUBLIC_STREAM_URL || 'http://localhost:3001',
+  
+  // Authentication endpoints (REST API)
   AUTH: {
     LOGIN: '/auth/login',
     REGISTER: '/auth/register',
     VERIFY: '/auth/verify',
   },
   
-  // Orders endpoints
+  // Orders endpoints (REST API)
   ORDERS: {
     LIST: '/orders',
     CREATE: '/orders',
@@ -22,7 +27,7 @@ export const API_CONFIG = {
     DELETE: (id: string) => `/orders/${id}`,
   },
   
-  // Users endpoints
+  // Users endpoints (REST API)
   USERS: {
     LIST: '/users',
     CREATE: '/users',
@@ -31,10 +36,11 @@ export const API_CONFIG = {
     DELETE: (id: string) => `/users/${id}`,
   },
   
-  // Stream endpoints
+  // Stream endpoints (Streaming Service)
   STREAM: {
     EVENTS: '/stream', // Server-Sent Events endpoint
     PING: '/stream/ping',
+    WEBSOCKET: '/ws', // WebSocket endpoint (para futuro uso)
   },
 };
 
@@ -116,8 +122,14 @@ export class ApiClient {
   }
 
   private getAuthHeaders(): Record<string, string> {
-    const token = localStorage.getItem('auth_token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    // Read JWT from cookie (set via AuthStore). HttpOnly cookies cannot be read, but fallback to client cookie.
+    try {
+      if (typeof window === 'undefined') return {};
+      const token = Cookies.get('access_token');
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    } catch (_) {
+      return {};
+    }
   }
 
   private async request<T>(
@@ -127,12 +139,13 @@ export class ApiClient {
     const url = `${this.baseURL}${endpoint}`;
     
     const config: RequestInit = {
+      ...options,
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...this.getAuthHeaders(),
         ...options.headers,
       },
-      ...options,
     };
 
     try {
@@ -172,16 +185,24 @@ export class ApiClient {
   }
 
   // Orders methods
-  async getOrders(params?: { page?: number; limit?: number; search?: string }) {
-    const searchParams = new URLSearchParams();
-    if (params?.page) searchParams.append('page', params.page.toString());
-    if (params?.limit) searchParams.append('limit', params.limit.toString());
-    if (params?.search) searchParams.append('search', params.search);
-    
-    const queryString = searchParams.toString();
-    const endpoint = queryString ? `${API_CONFIG.ORDERS.LIST}?${queryString}` : API_CONFIG.ORDERS.LIST;
-    
-    return this.request<Order[]>(endpoint);
+  async getOrders(params?: { page?: number; limit?: number; search?: string }): Promise<Order[]> {
+    try {
+      const searchParams = new URLSearchParams();
+      if (params?.page) searchParams.append('page', params.page.toString());
+      if (params?.limit) searchParams.append('limit', params.limit.toString());
+      if (params?.search) searchParams.append('search', params.search);
+      
+      const queryString = searchParams.toString();
+      const endpoint = queryString ? `${API_CONFIG.ORDERS.LIST}?${queryString}` : API_CONFIG.ORDERS.LIST;
+      
+      const result = await this.request<Order[]>(endpoint);
+      
+      // Garantir que sempre retorne um array
+      return Array.isArray(result) ? result : [];
+    } catch (error) {
+      console.error('getOrders error:', error);
+      return []; // Retorna array vazio em caso de erro
+    }
   }
 
   async getMyOrders() {
@@ -243,7 +264,22 @@ export class ApiClient {
 
   // Stream methods
   async pingStream() {
-    return this.request<{ message: string; timestamp: string; status: string }>(API_CONFIG.STREAM.PING);
+    // Ping direto na URL de streaming (não na API REST)
+    const streamUrl = `${API_CONFIG.STREAM_BASE_URL}${API_CONFIG.STREAM.PING}`;
+    
+    const response = await fetch(streamUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.getAuthHeaders(),
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Stream service ping failed: ${response.status}`);
+    }
+    
+    return response.json() as Promise<{ message: string; timestamp: string; status: string }>;
   }
 }
 
@@ -256,7 +292,8 @@ export class StreamEventSource {
   private url: string;
 
   constructor(endpoint: string = API_CONFIG.STREAM.EVENTS) {
-    this.url = `${API_CONFIG.BASE_URL}${endpoint}`;
+    // Use a URL de streaming separada para SSE
+    this.url = `${API_CONFIG.STREAM_BASE_URL}${endpoint}`;
   }
 
   connect(
@@ -267,7 +304,7 @@ export class StreamEventSource {
   ): void {
     try {
       // Add auth token and parameters to URL for SSE
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('access_token');
       const params = new URLSearchParams();
       
       if (token) {

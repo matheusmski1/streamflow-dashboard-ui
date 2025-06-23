@@ -47,8 +47,7 @@ const LoginForm: React.FC = () => {
         // Login real usando a API
         const response = await apiClient.login({ email, password });
         
-        // Salva o token
-        localStorage.setItem('auth_token', response.access_token);
+        // Token será armazenado via AuthStore (cookie)
         
         // Chama a função login do contexto
         login(response.access_token, response.user);
@@ -77,8 +76,7 @@ const LoginForm: React.FC = () => {
         // Registro real usando a API
         const response = await apiClient.register({ name, email, password });
         
-        // Salva o token
-        localStorage.setItem('auth_token', response.access_token);
+        // Token será armazenado via AuthStore (cookie)
         
         // Chama a função login do contexto
         login(response.access_token, response.user);

@@ -1,0 +1,21 @@
+{
+  "project": "streamflow-dashboard",
+  "environment": "production",
+  "aws": {
+    "region": "us-east-1",
+    "s3": {
+      "bucketPrefix": "streamflow-dashboard",
+      "indexDocument": "index.html",
+      "errorDocument": "404.html"
+    },
+    "cloudfront": {
+      "priceClass": "PriceClass_100",
+      "cachingEnabled": true,
+      "compressionEnabled": true
+    }
+  },
+  "build": {
+    "outputDir": "out",
+    "buildCommand": "npm run build"
+  }
+} 

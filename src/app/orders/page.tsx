@@ -101,11 +101,15 @@ function OrdersContent() {
         search: searchTerm
       });
       
-      setOrders(response);
+      // Garantir que sempre seja um array
+      const ordersData = Array.isArray(response) ? response : [];
+      setOrders(ordersData);
       // Note: Ajustar quando a API retornar paginação
-      setTotalPages(Math.ceil(response.length / 10));
+      setTotalPages(Math.ceil(ordersData.length / 10));
     } catch (error) {
       console.error('Failed to fetch orders:', error);
+      // Em caso de erro, garantir que orders seja um array vazio
+      setOrders([]);
     } finally {
       setIsLoading(false);
     }
@@ -324,7 +328,7 @@ function OrdersContent() {
                     {orders.map((order, index) => (
                       <tr key={order.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          #{order.id.slice(-8)}
+                          #{(order.id || '').slice(-8)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.customer}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.product}</td>

@@ -32,14 +32,14 @@ export const useAuthStore = create<AuthState>()(
       setIsAuthenticated: (value) => set({ isAuthenticated: value }),
       setIsLoading: (value) => set({ isLoading: value }),
       login: (token, user) => {
-        Cookies.set('auth_token', token, {
+        Cookies.set('access_token', token, {
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'strict',
         })
         set({ user, isAuthenticated: true, isLoading: false })
       },
       logout: () => {
-        Cookies.remove('auth_token')
+        Cookies.remove('access_token')
         set({ user: null, isAuthenticated: false, isLoading: false })
       },
     }),

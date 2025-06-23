@@ -27,11 +27,19 @@ const StreamTable: React.FC = () => {
   const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [showUserOnly, setShowUserOnly] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState<string>('all');
+  const [hasAttemptedConnection, setHasAttemptedConnection] = useState(false);
   const { user, isDevelopmentMode } = useAuth();
 
+  // Only disconnect when component unmounts
   useEffect(() => {
-    connectToStream();
     return () => disconnectFromStream();
+  }, []);
+
+  // When filters change, only reconnect if already connected
+  useEffect(() => {
+    if (isConnected && hasAttemptedConnection) {
+      handleRefresh();
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showUserOnly, eventTypeFilter]);
 
@@ -39,6 +47,7 @@ const StreamTable: React.FC = () => {
     try {
       setIsLoading(true);
       setConnectionAttempts(prev => prev + 1);
+      setHasAttemptedConnection(true);
 
       // Primeiro tenta fazer ping no serviço de stream
       if (!isDevelopmentMode) {
@@ -149,12 +158,8 @@ const StreamTable: React.FC = () => {
         (error) => {
           console.error('Stream error:', error);
           setIsConnected(false);
-          // Retry connection after 5 seconds
-          setTimeout(() => {
-            if (connectionAttempts < 5) {
-              connectToStream();
-            }
-          }, 5000);
+          setIsLoading(false);
+          // Manual reconnection only - no automatic retry
         },
         () => {
           console.log('Stream connection opened successfully');
@@ -208,10 +213,22 @@ const StreamTable: React.FC = () => {
     });
   }, [events]);
 
+  const handleConnect = () => {
+    if (!isConnected && !isLoading) {
+      setConnectionAttempts(0);
+      connectToStream();
+    }
+  };
+
   const handleRefresh = () => {
     disconnectFromStream();
     setConnectionAttempts(0);
     connectToStream();
+  };
+
+  const handleDisconnect = () => {
+    disconnectFromStream();
+    setConnectionAttempts(0);
   };
 
   const handleClearEvents = () => {
@@ -277,24 +294,54 @@ const StreamTable: React.FC = () => {
             {isConnected ? <Wifi className="w-5 h-5 text-green-500" /> : <WifiOff className="w-5 h-5 text-red-500" />}
             <div>
               <span className="text-sm font-medium text-gray-700">
-                {isConnected ? 'Connected to stream' : 'Disconnected from stream'}
+                {isConnected 
+                  ? 'Connected to stream' 
+                  : hasAttemptedConnection 
+                    ? 'Disconnected from stream'
+                    : 'Ready to connect'
+                }
               </span>
-              {connectionAttempts > 0 && !isConnected && (
+              {connectionAttempts > 0 && !isConnected && isLoading && (
                 <div className="text-xs text-gray-500">
-                  Attempt {connectionAttempts}/5
+                  Connecting... (attempt {connectionAttempts})
+                </div>
+              )}
+              {connectionAttempts > 0 && !isConnected && !isLoading && hasAttemptedConnection && (
+                <div className="text-xs text-gray-500">
+                  Connection failed. Click Connect to retry.
                 </div>
               )}
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            <button
-              onClick={handleRefresh}
-              disabled={isLoading}
-              className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-            >
-              <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
-              <span>Refresh</span>
-            </button>
+            {!isConnected ? (
+              <button
+                onClick={handleConnect}
+                disabled={isLoading}
+                className="flex items-center space-x-2 px-3 py-1 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+              >
+                <Wifi size={16} className={isLoading ? 'animate-spin' : ''} />
+                <span>{isLoading ? 'Connecting...' : 'Connect'}</span>
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={handleRefresh}
+                  disabled={isLoading}
+                  className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+                  <span>Refresh</span>
+                </button>
+                <button
+                  onClick={handleDisconnect}
+                  className="flex items-center space-x-2 px-3 py-1 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700"
+                >
+                  <WifiOff size={16} />
+                  <span>Disconnect</span>
+                </button>
+              </>
+            )}
             <button
               onClick={handleClearEvents}
               disabled={events.length === 0}
@@ -427,7 +474,7 @@ const StreamTable: React.FC = () => {
                     {event.location}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono">
-                    {event.userId.slice(-8)}
+                    {(event.userId || '').slice(-8)}
                   </td>
                 </tr>
               ))}
@@ -440,7 +487,9 @@ const StreamTable: React.FC = () => {
               <p className="mt-1 text-sm text-gray-500">
                 {isConnected 
                   ? 'Waiting for new events...' 
-                  : 'Connect to start receiving events'
+                  : hasAttemptedConnection 
+                    ? 'Connection lost. Click Connect to reconnect.'
+                    : 'Click Connect to start receiving events'
                 }
               </p>
             </div>
