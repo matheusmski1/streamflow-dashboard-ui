@@ -95,17 +95,14 @@ function OrdersContent() {
       }
 
       // Busca pedidos reais
-      const response = await apiClient.getOrders({
+      const { orders: fetchedOrders, total } = await apiClient.getOrders({
         page: currentPage,
         limit: 10,
         search: searchTerm
       });
-      
-      // Garantir que sempre seja um array
-      const ordersData = Array.isArray(response) ? response : [];
-      setOrders(ordersData);
-      // Note: Ajustar quando a API retornar paginação
-      setTotalPages(Math.ceil(ordersData.length / 10));
+
+      setOrders(fetchedOrders);
+      setTotalPages(Math.max(1, Math.ceil(total / 10)));
     } catch (error) {
       console.error('Failed to fetch orders:', error);
       // Em caso de erro, garantir que orders seja um array vazio

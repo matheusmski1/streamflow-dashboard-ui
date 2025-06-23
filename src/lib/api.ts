@@ -187,7 +187,7 @@ export class ApiClient {
   }
 
   // Orders methods
-  async getOrders(params?: { page?: number; limit?: number; search?: string }): Promise<Order[]> {
+  async getOrders(params?: { page?: number; limit?: number; search?: string }): Promise<{ orders: Order[]; total: number }> {
     try {
       const searchParams = new URLSearchParams();
       if (params?.page) searchParams.append('page', params.page.toString());
@@ -197,13 +197,14 @@ export class ApiClient {
       const queryString = searchParams.toString();
       const endpoint = queryString ? `${API_CONFIG.ORDERS.LIST}?${queryString}` : API_CONFIG.ORDERS.LIST;
       
-      const result = await this.request<Order[]>(endpoint);
-      
-      // Garantir que sempre retorne um array
-      return Array.isArray(result) ? result : [];
+      const result = await this.request<{ orders: Order[]; total: number }>(endpoint);
+      return {
+        orders: result.orders ?? [],
+        total: result.total ?? result.orders?.length ?? 0,
+      };
     } catch (error) {
       console.error('getOrders error:', error);
-      return []; // Retorna array vazio em caso de erro
+      return { orders: [], total: 0 };
     }
   }
 
