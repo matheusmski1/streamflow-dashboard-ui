@@ -9,6 +9,16 @@ import { apiClient, Order } from '@/lib/api';
 
 export default function DashboardPage() {
   const { user, isDevelopmentMode } = useAuth();
+  
+  // Debug: Log environment info
+  useEffect(() => {
+    console.log('🏠 Dashboard Environment Info:', {
+      isDevelopmentMode,
+      NODE_ENV: process.env.NODE_ENV,
+      DEV_MODE: process.env.NEXT_PUBLIC_DEV_MODE,
+      API_URL: process.env.NEXT_PUBLIC_API_URL
+    });
+  }, [isDevelopmentMode]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState({
     activeOrders: 0,
@@ -73,9 +83,13 @@ export default function DashboardPage() {
         }
 
         // Busca dados reais
+        console.log('🔍 Dashboard: Fetching orders from API...');
         const response = await apiClient.getOrders();
-        // Garantir que sempre seja um array
-        const ordersData = Array.isArray(response) ? response : [];
+        console.log('📦 Dashboard: API response:', response);
+        
+        // Garantir que sempre seja um array - response.orders é o array de pedidos
+        const ordersData = response && Array.isArray(response.orders) ? response.orders : [];
+        console.log('📊 Dashboard: Orders data:', ordersData);
         setOrders(ordersData);
         
         // Calcula estatísticas
