@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Activity, TrendingUp, Users, Zap, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-react';
 import StatCard from './StatCard';
-import { StreamEventSource, StreamEvent, apiClient } from '@/lib/api';
-import { useAuth } from '@/contexts/AuthContext';
+import { StreamEventSource, StreamEvent, apiClient } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
 
 interface StreamStats {
   totalEvents: number;

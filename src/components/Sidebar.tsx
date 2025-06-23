@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogOut, Activity, BarChart3, Settings, Package } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../context/AuthContext';
 
 interface SidebarProps {
   isOpen: boolean;

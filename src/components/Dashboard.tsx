@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import Sidebar from './Sidebar';
 import StreamTable from './StreamTable';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../context/AuthContext';
 
 const Dashboard: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);

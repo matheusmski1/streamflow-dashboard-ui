@@ -1,10 +1,8 @@
-'use client';
-
 import React, { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/router';
 import { AlertCircle } from 'lucide-react';
-import { apiClient } from '@/lib/api';
+import { apiClient } from '@/services/api';
 
 const LoginForm: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -15,8 +13,7 @@ const LoginForm: React.FC = () => {
   const [name, setName] = useState('');
   const { login, isDevelopmentMode } = useAuth(false);
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') || '/dashboard';
+  const redirect = router.query.redirect as string || '/dashboard';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +39,7 @@ const LoginForm: React.FC = () => {
         login(token, user);
 
         // Redireciona para a página solicitada ou dashboard
-        router.replace(redirect);
+        router.push(redirect);
       } else {
         // Login real usando a API
         const response = await apiClient.login({ email, password });
@@ -53,7 +50,7 @@ const LoginForm: React.FC = () => {
         login(response.access_token, response.user);
 
         // Redireciona para a página solicitada ou dashboard
-        router.replace(redirect);
+        router.push(redirect);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -82,7 +79,7 @@ const LoginForm: React.FC = () => {
         login(response.access_token, response.user);
 
         // Redireciona para a página solicitada ou dashboard
-        router.replace(redirect);
+        router.push(redirect);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');

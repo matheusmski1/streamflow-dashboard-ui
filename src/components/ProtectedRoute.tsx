@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import LoginForm from './LoginForm';
 import { RefreshCw } from 'lucide-react';
 
