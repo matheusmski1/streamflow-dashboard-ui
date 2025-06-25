@@ -296,20 +296,37 @@ export class ApiClient {
     // Ping direto na URL de streaming (não na API REST)
     const streamUrl = `${API_CONFIG.STREAM_BASE_URL}${API_CONFIG.STREAM.PING}`;
     
+    console.log('🏓 Attempting to ping stream service...');
+    console.log('🏓 Stream URL:', streamUrl);
+    console.log('🏓 API_CONFIG.STREAM_BASE_URL:', API_CONFIG.STREAM_BASE_URL);
+    console.log('🏓 API_CONFIG.STREAM.PING:', API_CONFIG.STREAM.PING);
+    
+    const authHeaders = this.getAuthHeaders();
+    console.log('🔑 Auth headers:', Object.keys(authHeaders));
+    
     const response = await fetch(streamUrl, {
       method: 'GET',
       credentials: 'include', // Para enviar HttpOnly cookies
       headers: {
         'Content-Type': 'application/json',
-        ...this.getAuthHeaders(),
+        ...authHeaders,
       },
     });
     
+    console.log('🏓 Ping response status:', response.status);
+    console.log('🏓 Ping response headers:', Object.fromEntries(response.headers.entries()));
+    
     if (!response.ok) {
-      throw new Error(`Stream service ping failed: ${response.status}`);
+      console.error('🏓 Stream service ping failed:', response.status, response.statusText);
+      const errorText = await response.text().catch(() => 'Unable to read error response');
+      console.error('🏓 Error response body:', errorText);
+      throw new Error(`Stream service ping failed: ${response.status} - ${response.statusText}`);
     }
     
-    return response.json() as Promise<{ message: string; timestamp: string; status: string }>;
+    const result = await response.json() as Promise<{ message: string; timestamp: string; status: string }>;
+    console.log('🏓 Stream service ping successful:', result);
+    
+    return result;
   }
 }
 
@@ -324,6 +341,9 @@ export class StreamEventSource {
   constructor(endpoint: string = API_CONFIG.STREAM.EVENTS) {
     // Use a URL de streaming separada para SSE
     this.url = `${API_CONFIG.STREAM_BASE_URL}${endpoint}`;
+    console.log('🔧 StreamEventSource initialized with URL:', this.url);
+    console.log('🔧 API_CONFIG.STREAM_BASE_URL:', API_CONFIG.STREAM_BASE_URL);
+    console.log('🔧 API_CONFIG.STREAM.EVENTS:', API_CONFIG.STREAM.EVENTS);
   }
 
   connect(
@@ -333,8 +353,17 @@ export class StreamEventSource {
     options?: { type?: string; userOnly?: boolean }
   ): void {
     try {
+      console.log('🚀 Attempting to connect to stream...');
+      console.log('🚀 Connection options:', options);
+      
       // Add auth token and parameters to URL for SSE
       const token = Cookies.get('access_token');
+      console.log('🔑 Auth token available:', !!token);
+      if (token) {
+        console.log('🔑 Token length:', token.length);
+        console.log('🔑 Token preview:', token.substring(0, 20) + '...');
+      }
+      
       const params = new URLSearchParams();
       
       if (token) {
@@ -350,40 +379,76 @@ export class StreamEventSource {
       }
       
       const urlWithParams = params.toString() ? `${this.url}?${params.toString()}` : this.url;
+      console.log('🌐 Final SSE URL:', urlWithParams);
       
+      console.log('🔧 Creating EventSource...');
       this.eventSource = new EventSource(urlWithParams);
       
       this.eventSource.onopen = (event) => {
-        console.log('Stream connected');
+        console.log('✅ Stream connected successfully!');
+        console.log('✅ EventSource readyState:', this.eventSource?.readyState);
+        console.log('✅ EventSource URL:', this.eventSource?.url);
         onOpen?.(event);
       };
       
-      this.eventSource.onmessage = onMessage;
+      this.eventSource.onmessage = (event) => {
+        console.log('📨 Raw SSE message received:');
+        console.log('📨 Event type:', event.type);
+        console.log('📨 Event data length:', event.data?.length);
+        console.log('📨 Event data preview:', event.data?.substring(0, 100) + '...');
+        onMessage(event);
+      };
       
       this.eventSource.onerror = (error) => {
-        console.error('Stream error:', error);
+        console.error('❌ Stream error occurred:');
+        console.error('❌ Error type:', error.type);
+        console.error('❌ Error target:', error.target);
+        console.error('❌ EventSource readyState:', this.eventSource?.readyState);
+        console.error('❌ EventSource URL:', this.eventSource?.url);
+        
+        // Log more details about the error
+        if (error.target instanceof EventSource) {
+          console.error('❌ EventSource readyState:', error.target.readyState);
+          console.error('❌ EventSource URL:', error.target.url);
+        }
+        
         onError?.(error);
       };
+      
+      console.log('🔧 EventSource created, waiting for connection...');
     } catch (error) {
-      console.error('Failed to create EventSource:', error);
+      console.error('💥 Failed to create EventSource:', error);
+      console.error('💥 Error details:', {
+        name: (error as Error).name,
+        message: (error as Error).message,
+        stack: (error as Error).stack
+      });
       onError?.(error as Event);
     }
   }
 
   disconnect(): void {
     if (this.eventSource) {
+      console.log('🔌 Disconnecting from stream...');
+      console.log('🔌 EventSource readyState before disconnect:', this.eventSource.readyState);
       this.eventSource.close();
       this.eventSource = null;
-      console.log('Stream disconnected');
+      console.log('🔌 Stream disconnected');
+    } else {
+      console.log('🔌 No active connection to disconnect');
     }
   }
 
   getReadyState(): number {
-    return this.eventSource?.readyState ?? EventSource.CLOSED;
+    const state = this.eventSource?.readyState ?? EventSource.CLOSED;
+    console.log('📊 Current readyState:', state);
+    return state;
   }
 
   isConnected(): boolean {
-    return this.eventSource?.readyState === EventSource.OPEN;
+    const connected = this.eventSource?.readyState === EventSource.OPEN;
+    console.log('🔗 Connection status:', connected);
+    return connected;
   }
 }
 

@@ -45,22 +45,30 @@ const StreamTable: React.FC = () => {
 
   const connectToStream = async () => {
     try {
+      console.log('🚀 StreamTable: Starting connection process...');
+      console.log('🚀 StreamTable: Development mode:', isDevelopmentMode);
+      console.log('🚀 StreamTable: User info:', user);
+      
       setIsLoading(true);
       setConnectionAttempts(prev => prev + 1);
       setHasAttemptedConnection(true);
 
       // Primeiro tenta fazer ping no serviço de stream
       if (!isDevelopmentMode) {
+        console.log('🏓 StreamTable: Attempting to ping stream service...');
         try {
-          await apiClient.pingStream();
+          const pingResult = await apiClient.pingStream();
+          console.log('🏓 StreamTable: Ping successful:', pingResult);
         } catch (error) {
-          console.warn('Stream service ping failed:', error);
+          console.warn('🏓 StreamTable: Stream service ping failed:', error);
+          console.warn('🏓 StreamTable: This might indicate the stream service is not available');
           setIsLoading(false);
           return;
         }
       }
       
       if (isDevelopmentMode) {
+        console.log('🎭 StreamTable: Running in development mode, using mock data');
         // Simula conexão em desenvolvimento
         setIsConnected(true);
         setIsLoading(false);
@@ -98,15 +106,19 @@ const StreamTable: React.FC = () => {
             createdAt: new Date(Date.now() - 60000).toISOString(),
           }
         ];
+        console.log('🎭 StreamTable: Setting mock events:', mockEvents);
         setEvents(mockEvents);
         return;
       }
 
+      console.log('🔌 StreamTable: Setting up real SSE connection...');
       // Conexão real usando SSE
       const streamOptions = {
         type: eventTypeFilter !== 'all' ? eventTypeFilter : undefined,
         userOnly: showUserOnly
       };
+      
+      console.log('🔌 StreamTable: Stream options:', streamOptions);
 
       const eventSource = new StreamEventSource();
       setStreamSource(eventSource);
@@ -114,7 +126,9 @@ const StreamTable: React.FC = () => {
       eventSource.connect(
         (event) => {
           try {
-            console.log('Received SSE event raw data:', event.data);
+            console.log('📨 StreamTable: Received SSE event raw data:', event.data);
+            console.log('📨 StreamTable: Event type:', event.type);
+            console.log('📨 StreamTable: Event origin:', event.origin);
             
             // O event.data vem como string do SSE, pode ter diferentes formatos
             let jsonString = event.data;
@@ -136,33 +150,33 @@ const StreamTable: React.FC = () => {
               }
             }
             
-            console.log('Processed JSON string:', jsonString);
+            console.log('📨 StreamTable: Processed JSON string:', jsonString);
             
             const eventData = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
             const streamEvent: StreamEvent = eventData;
-            console.log('Successfully parsed stream event:', streamEvent);
-            console.log('Event value:', streamEvent.value, 'Type:', typeof streamEvent.value);
+            console.log('📨 StreamTable: Successfully parsed stream event:', streamEvent);
+            console.log('📨 StreamTable: Event value:', streamEvent.value, 'Type:', typeof streamEvent.value);
             
             setEvents(prevEvents => {
               const newEvents = [streamEvent, ...prevEvents.slice(0, 99)];
-              console.log('Updated events array length:', newEvents.length);
+              console.log('📨 StreamTable: Updated events array length:', newEvents.length);
               return newEvents;
             });
           } catch (error) {
-            console.error('Error parsing stream event:', error);
-            console.error('Raw data type:', typeof event.data);
-            console.error('Raw data content:', event.data);
-            console.error('Raw data length:', event.data?.length);
+            console.error('❌ StreamTable: Error parsing stream event:', error);
+            console.error('❌ StreamTable: Raw data type:', typeof event.data);
+            console.error('❌ StreamTable: Raw data content:', event.data);
+            console.error('❌ StreamTable: Raw data length:', event.data?.length);
           }
         },
         (error) => {
-          console.error('Stream error:', error);
+          console.error('❌ StreamTable: Stream error callback triggered:', error);
           setIsConnected(false);
           setIsLoading(false);
           // Manual reconnection only - no automatic retry
         },
         () => {
-          console.log('Stream connection opened successfully');
+          console.log('✅ StreamTable: Stream connection opened successfully');
           setIsConnected(true);
           setIsLoading(false);
           setConnectionAttempts(0);
@@ -171,18 +185,25 @@ const StreamTable: React.FC = () => {
       );
       
     } catch (error) {
-      console.error('Failed to connect to stream:', error);
+      console.error('💥 StreamTable: Failed to connect to stream:', error);
+      console.error('💥 StreamTable: Error details:', {
+        name: (error as Error).name,
+        message: (error as Error).message,
+        stack: (error as Error).stack
+      });
       setIsConnected(false);
       setIsLoading(false);
     }
   };
 
   const disconnectFromStream = () => {
+    console.log('🔌 StreamTable: Disconnecting from stream...');
     if (streamSource) {
       streamSource.disconnect();
       setStreamSource(null);
     }
     setIsConnected(false);
+    console.log('🔌 StreamTable: Disconnection completed');
   };
 
   // Update stats when events change
@@ -214,19 +235,26 @@ const StreamTable: React.FC = () => {
   }, [events]);
 
   const handleConnect = () => {
+    console.log('🔗 StreamTable: Handle connect triggered');
+    console.log('🔗 StreamTable: Current connection state:', { isConnected, isLoading });
     if (!isConnected && !isLoading) {
+      console.log('🔗 StreamTable: Starting connection...');
       setConnectionAttempts(0);
       connectToStream();
+    } else {
+      console.log('🔗 StreamTable: Connection already in progress or connected');
     }
   };
 
   const handleRefresh = () => {
+    console.log('🔄 StreamTable: Handle refresh triggered');
     disconnectFromStream();
     setConnectionAttempts(0);
     connectToStream();
   };
 
   const handleDisconnect = () => {
+    console.log('🔌 StreamTable: Handle disconnect triggered');
     disconnectFromStream();
     setConnectionAttempts(0);
   };
@@ -286,6 +314,21 @@ const StreamTable: React.FC = () => {
           </p>
         </div>
       )}
+
+      {/* Debug Information */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <h3 className="text-sm font-medium text-gray-800 mb-2">🔍 Debug Information</h3>
+        <div className="text-xs text-gray-600 space-y-1">
+          <div><strong>API URL:</strong> {process.env.NEXT_PUBLIC_API_URL}</div>
+          <div><strong>Stream URL:</strong> {process.env.NEXT_PUBLIC_STREAM_URL}</div>
+          <div><strong>Development Mode:</strong> {isDevelopmentMode ? 'Yes' : 'No'}</div>
+          <div><strong>User ID:</strong> {user?.id || 'Not logged in'}</div>
+          <div><strong>Connection Status:</strong> {isConnected ? 'Connected' : 'Disconnected'}</div>
+          <div><strong>Loading:</strong> {isLoading ? 'Yes' : 'No'}</div>
+          <div><strong>Connection Attempts:</strong> {connectionAttempts}</div>
+          <div><strong>Total Events:</strong> {events.length}</div>
+        </div>
+      </div>
 
       {/* Connection Status and Controls */}
       <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
