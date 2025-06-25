@@ -37,16 +37,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       if (isDevelopment) {
-        store.setIsLoading(false); // Garante que não fica em loading
-        return; // Em desenvolvimento, não verifica token
+        store.setIsLoading(false);
+        return;
       }
-
       const token = Cookies.get('access_token');
       if (!token) {
         store.logout();
         return;
       }
-
       try {
         store.setIsLoading(true);
         const response = await apiClient.verifyToken();
@@ -60,9 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         store.setIsLoading(false);
       }
     };
-
     checkAuth();
-  }, [store, router]); // Adiciona as dependências necessárias
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <AuthContext.Provider 
