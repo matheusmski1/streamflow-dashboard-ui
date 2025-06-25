@@ -28,7 +28,7 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
   });
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [streamSource, setStreamSource] = useState<StreamEventSource | null>(null);
+  const streamRef = React.useRef<StreamEventSource | null>(null);
   const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [showUserOnly, setShowUserOnly] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState<string>('all');
@@ -50,12 +50,12 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
 
   // Cleanup ao desmontar
   const disconnectFromStream = useCallback(() => {
-    if (streamSource) {
-      streamSource.disconnect();
-      setStreamSource(null);
+    if (streamRef.current) {
+      streamRef.current.disconnect();
+      streamRef.current = null;
       setIsConnected(false);
     }
-  }, [streamSource]);
+  }, []);
 
   useEffect(() => {
     return () => disconnectFromStream();
@@ -105,14 +105,6 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
       setIsLoading(true);
       setConnectionAttempts(prev => prev + 1);
       setHasAttemptedConnection(true);
-      if (!isDevelopmentMode) {
-        try {
-          await apiClient.pingStream();
-        } catch (error) {
-          setIsLoading(false);
-          return;
-        }
-      }
       if (isDevelopmentMode) {
         setIsConnected(true);
         setIsLoading(false);
@@ -135,7 +127,7 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
         userOnly: showUserOnly
       };
       const eventSource = new StreamEventSource();
-      setStreamSource(eventSource);
+      streamRef.current = eventSource;
       eventSource.connect(
         (event) => {
           try {
@@ -158,7 +150,9 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
             if (onEventReceived) {
               onEventReceived(streamEvent);
             }
-          } catch {}
+          } catch (error) {
+            console.error('❌ Erro ao processar evento SSE:', error);
+          }
         },
         () => setIsConnected(false),
         () => {
@@ -235,51 +229,21 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
     return true;
   });
 
-  useEffect(() => {
-    if (isConnected) {
-      console.log('🔄 StreamTable: Conectando ao stream...');
-      connectToStream();
-    } else {
-      console.log('🔌 StreamTable: Desconectando do stream...');
-      disconnectFromStream();
-    }
-
-    return () => {
-      console.log('🧹 StreamTable: Cleanup - desconectando do stream');
-      disconnectFromStream();
-    };
-  }, [isConnected, connectToStream, disconnectFromStream]);
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Development Mode Notice */}
       {isDevelopmentMode && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-blue-800 mb-2">🚧 Development Mode Active</h3>
-          <p className="text-sm text-blue-700">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+          <h3 className="text-sm font-medium text-blue-800 mb-1">🚧 Development Mode Active</h3>
+          <p className="text-xs text-blue-700">
             Stream functionality is working with mock data. In production, it will connect to the real-time SSE endpoint.
           </p>
         </div>
       )}
 
-      {/* Debug Information */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-gray-800 mb-2">🔍 Debug Information</h3>
-        <div className="text-xs text-gray-600 space-y-1">
-          <div><strong>API URL:</strong> {process.env.NEXT_PUBLIC_API_URL}</div>
-          <div><strong>Stream URL:</strong> {process.env.NEXT_PUBLIC_STREAM_URL}</div>
-          <div><strong>Development Mode:</strong> {isDevelopmentMode ? 'Yes' : 'No'}</div>
-          <div><strong>User ID:</strong> {user?.id || 'Not logged in'}</div>
-          <div><strong>Connection Status:</strong> {isConnected ? 'Connected' : 'Disconnected'}</div>
-          <div><strong>Loading:</strong> {isLoading ? 'Yes' : 'No'}</div>
-          <div><strong>Connection Attempts:</strong> {connectionAttempts}</div>
-          <div><strong>Total Events:</strong> {events.length}</div>
-        </div>
-      </div>
-
       {/* Connection Status and Controls */}
-      <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-gray-50 rounded-lg p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-3">
             {isConnected ? <Wifi className="w-5 h-5 text-green-500" /> : <WifiOff className="w-5 h-5 text-red-500" />}
             <div>
@@ -375,29 +339,29 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <StatCard
           title="Total Events"
           value={stats.totalEvents.toLocaleString()}
-          icon={<Activity size={24} />}
+          icon={<Activity size={18} />}
           color="blue"
         />
         <StatCard
           title="Events/Second"
           value={stats.eventsPerSecond ? stats.eventsPerSecond.toFixed(1) : '0.0'}
-          icon={<Zap size={24} />}
+          icon={<Zap size={18} />}
           color="green"
         />
         <StatCard
           title="Active Users"
           value={stats.activeUsers || 0}
-          icon={<Users size={24} />}
+          icon={<Users size={18} />}
           color="yellow"
         />
         <StatCard
           title="Error Rate"
           value={`${stats.errorRate ? stats.errorRate.toFixed(1) : '0.0'}%`}
-          icon={<TrendingUp size={24} />}
+          icon={<TrendingUp size={18} />}
           color="red"
         />
       </div>

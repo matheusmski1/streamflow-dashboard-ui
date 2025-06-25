@@ -37,8 +37,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
       icon: BarChart3,
     },
     {
-      name: 'Corinthians Test',
-      href: '/corinthians-test',
+      name: 'Test Events',
+      href: '/test-events',
       icon: Zap,
     },
     {

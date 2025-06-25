@@ -89,12 +89,15 @@ const LoginForm: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="max-w-md w-full space-y-6 p-8 bg-white rounded-lg shadow-lg">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h2 className="text-center text-3xl font-extrabold text-gray-900">
             {showRegister ? 'Create your account' : 'Sign in to your account'}
           </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Access your StreamFlow dashboard
+          </p>
         </div>
         
         {error && (
@@ -108,7 +111,7 @@ const LoginForm: React.FC = () => {
           </div>
         )}
 
-        <form className="mt-8 space-y-6" onSubmit={showRegister ? handleRegister : handleLogin}>
+        <form className="mt-6 space-y-6" onSubmit={showRegister ? handleRegister : handleLogin}>
           <div className="rounded-md shadow-sm -space-y-px">
             {showRegister && (
               <div>

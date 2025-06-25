@@ -730,18 +730,21 @@ const CorinthiansTestEvents: React.FC = () => {
     }
   };
 
-  // Função para converter eventos do Corinthians em orders criativas
+  const uuidStatic = 'fe5c2895-26d6-48b8-a529-17aea2d2f4b8';
+
+  const ensurePositive = (num: number): number => (num <= 0 ? Math.abs(num) || 1 : num);
+
   const convertEventToOrder = (event: CorinthiansEvent, matchEvent: MatchEvent | undefined): CreateOrderDto => {
     const baseOrder: CreateOrderDto = {
       customer: 'Corinthians FC',
       product: event.action,
       quantity: 1,
-      price: event.value,
+      price: ensurePositive(event.value),
       status: 'PENDING',
       title: `${event.player} - ${event.action}`,
       description: matchEvent ? matchEvent.description : `${event.action} por ${event.player}`,
-      amount: event.value,
-      userId: 'corinthians-fc',
+      amount: ensurePositive(event.value),
+      userId: uuidStatic,
     };
 
     // Mapeia eventos para orders criativas
@@ -837,21 +840,28 @@ const CorinthiansTestEvents: React.FC = () => {
           ...baseOrder,
           product: 'Cartão Vermelho',
           quantity: 1,
-          price: -500.00, // Cartão vermelho custa 500 reais
-          title: `Cartão Vermelho - ${matchEvent?.description || 'Falta grave'}`,
-          amount: -500.00,
+          price: 500.00,
+          title: `Cartão Vermelho - ${matchEvent?.description || 'Expulsão'}`,
+          amount: 500.00,
           status: 'CANCELLED'
         };
 
       case 'WARNING':
+        if (event.action === 'cartao_amarelo') {
+          return {
+            ...baseOrder,
+            product: 'Cartão Amarelo',
+            quantity: 1,
+            price: 100.00,
+            title: `Cartão Amarelo - ${matchEvent?.description || 'Advertência'}`,
+            amount: 100.00,
+            status: 'PENDING'
+          };
+        }
         return {
           ...baseOrder,
-          product: 'Cartão Amarelo',
-          quantity: 1,
-          price: -100.00, // Cartão amarelo custa 100 reais
-          title: `Cartão Amarelo - ${matchEvent?.description || 'Advertência'}`,
-          amount: -100.00,
-          status: 'PENDING'
+          price: ensurePositive(baseOrder.price),
+          amount: ensurePositive(baseOrder.amount),
         };
 
       default:
@@ -930,15 +940,37 @@ const CorinthiansTestEvents: React.FC = () => {
           
           {lastGenerated.length > 0 && (
             <button
-              onClick={() => {
-                console.log('⚽ CorinthiansTestEvents: Sending events to stream...');
-                // Aqui você pode implementar a integração com o sistema de streaming
-                alert('Funcionalidade de integração com streaming será implementada em breve!');
+              onClick={async () => {
+                console.log('📦 CorinthiansTestEvents: Sending lastGenerated events to SQS for 20 seconds...');
+                const duration = 20000; // 20 segundos
+                const startTime = Date.now();
+                let index = 0;
+
+                const interval = setInterval(async () => {
+                  if (Date.now() - startTime >= duration) {
+                    clearInterval(interval);
+                    console.log('📦 CorinthiansTestEvents: Finished sending events to SQS');
+                    return;
+                  }
+
+                  if (index < lastGenerated.length) {
+                    const event = lastGenerated[index];
+                    const matchEvent = matchEvents.find(me => me.event.action === event.action && me.event.eventType === event.eventType);
+                    const order = convertEventToOrder(event, matchEvent);
+                    try {
+                      const res = await apiClient.createOrder(order);
+                      console.log('📦 Order sent to SQS:', res.id);
+                    } catch (err) {
+                      console.error('📦 Error sending order to SQS:', err);
+                    }
+                    index++;
+                  }
+                }, 1000);
               }}
-              className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="flex items-center space-x-2 px-3 py-1 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700"
             >
-              <RefreshCw size={16} />
-              <span>Enviar para Stream</span>
+              <Package size={16} />
+              <span>Enviar para SQS</span>
             </button>
           )}
           
