@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LogOut, Activity, BarChart3, Settings, Package } from 'lucide-react';
+import { LogOut, Activity, BarChart3, Settings, Package, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface SidebarProps {
@@ -35,6 +35,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
       name: 'Analytics',
       href: '/analytics',
       icon: BarChart3,
+    },
+    {
+      name: 'Corinthians Test',
+      href: '/corinthians-test',
+      icon: Zap,
     },
     {
       name: 'Settings',

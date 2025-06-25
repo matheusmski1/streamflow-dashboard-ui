@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Package, Search, RefreshCw, Edit2, Trash2, Plus } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Package, Search, RefreshCw, Edit2, Trash2, Plus, Eye } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import Layout from '@/components/Layout';
 import { apiClient, Order, CreateOrderDto } from '@/services/api';
@@ -27,11 +27,7 @@ export default function OrdersPage() {
   });
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
-  useEffect(() => {
-    fetchOrders();
-  }, [currentPage, searchTerm]);
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       setIsLoading(true);
       
@@ -86,7 +82,11 @@ export default function OrdersPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentPage, searchTerm, isDevelopmentMode, user?.id]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();

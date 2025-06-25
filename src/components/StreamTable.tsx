@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Activity, TrendingUp, Users, Zap, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-react';
 import StatCard from './StatCard';
 import { StreamEventSource, StreamEvent, apiClient } from '@/services/api';
@@ -13,7 +13,12 @@ interface StreamStats {
   errorRate: number;
 }
 
-const StreamTable: React.FC = () => {
+interface StreamTableProps {
+  externalEvents?: StreamEvent[];
+  onEventReceived?: (event: StreamEvent) => void;
+}
+
+const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, StreamTableProps>(({ externalEvents = [], onEventReceived }, ref) => {
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [stats, setStats] = useState<StreamStats>({
     totalEvents: 0,
@@ -42,6 +47,44 @@ const StreamTable: React.FC = () => {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showUserOnly, eventTypeFilter]);
+
+  // Process external events (from Corinthians generator)
+  useEffect(() => {
+    if (externalEvents.length > 0) {
+      console.log('🎯 StreamTable: Processing external events:', externalEvents.length);
+      
+      externalEvents.forEach((externalEvent) => {
+        console.log('🎯 StreamTable: Adding external event to stream:', externalEvent);
+        
+        // Adiciona o evento ao streaming local
+        setEvents(prevEvents => {
+          const newEvents = [externalEvent, ...prevEvents.slice(0, 99)];
+          console.log('🎯 StreamTable: Updated events array with external event:', newEvents.length);
+          return newEvents;
+        });
+        
+        // Notifica o callback se fornecido
+        if (onEventReceived) {
+          onEventReceived(externalEvent);
+        }
+      });
+    }
+  }, [externalEvents, onEventReceived]);
+
+  // Função para adicionar eventos externos (usada pelo Corinthians generator)
+  const addExternalEvent = (event: StreamEvent) => {
+    console.log('🎯 StreamTable: Adding external event:', event);
+    setEvents(prevEvents => {
+      const newEvents = [event, ...prevEvents.slice(0, 99)];
+      console.log('🎯 StreamTable: Updated events array with external event:', newEvents.length);
+      return newEvents;
+    });
+  };
+
+  // Expõe a função via ref
+  useImperativeHandle(ref, () => ({
+    addEvent: addExternalEvent
+  }));
 
   const connectToStream = async () => {
     try {
@@ -541,6 +584,8 @@ const StreamTable: React.FC = () => {
       </div>
     </div>
   );
-};
+});
+
+StreamTable.displayName = 'StreamTable';
 
 export default StreamTable; 

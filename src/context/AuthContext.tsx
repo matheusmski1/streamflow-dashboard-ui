@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     checkAuth();
-  }, []); // Executar apenas uma vez na inicialização
+  }, [store, router]); // Adiciona as dependências necessárias
 
   return (
     <AuthContext.Provider 
