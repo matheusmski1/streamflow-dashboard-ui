@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import Cookies from 'js-cookie'
 
 interface User {
   id: string
@@ -13,9 +12,11 @@ interface User {
 
 interface AuthState {
   user: User | null
+  token: string | null
   isAuthenticated: boolean
   isLoading: boolean
   setUser: (user: User | null) => void
+  setToken: (token: string | null) => void
   setIsAuthenticated: (value: boolean) => void
   setIsLoading: (value: boolean) => void
   login: (token: string, user: User) => void
@@ -24,28 +25,28 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
+      token: null,
       isAuthenticated: false,
-      isLoading: false, // Começa como false em desenvolvimento
+      isLoading: false,
       setUser: (user) => set({ user }),
+      setToken: (token) => set({ token }),
       setIsAuthenticated: (value) => set({ isAuthenticated: value }),
       setIsLoading: (value) => set({ isLoading: value }),
       login: (token, user) => {
-        // Salva o token apenas em cookie (parte do teste)
-        set({ user, isAuthenticated: true, isLoading: false })
+        set({ user, token, isAuthenticated: true, isLoading: false })
       },
       logout: () => {
-        Cookies.remove('access_token')
-        set({ user: null, isAuthenticated: false, isLoading: false })
+        set({ user: null, token: null, isAuthenticated: false, isLoading: false })
       },
     }),
     {
       name: 'auth-storage',
       partialize: (state) => ({ 
         user: state.user,
-        // NÃO persiste isAuthenticated para evitar hidratação incorreta
-        // isAuthenticated: state.isAuthenticated 
+        token: state.token,
+        isAuthenticated: state.isAuthenticated
       }),
     }
   )

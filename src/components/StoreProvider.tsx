@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useAuthStore } from '@/store/auth'
 
 interface StoreProviderProps {
   children: React.ReactNode
@@ -10,8 +11,22 @@ export default function StoreProvider({ children }: StoreProviderProps) {
   const [isHydrated, setIsHydrated] = useState(false)
 
   useEffect(() => {
-    // Simplesmente marca como hidratado após a montagem
-    setIsHydrated(true)
+    // Força a hidratação do store
+    const unsubscribe = useAuthStore.persist.onFinishHydration(() => {
+      console.log('🔄 Zustand store hydrated successfully')
+      setIsHydrated(true)
+    })
+
+    // Fallback: se não houver hidratação em 1 segundo, marca como hidratado
+    const timeout = setTimeout(() => {
+      console.log('⏰ Hydration timeout, marking as hydrated')
+      setIsHydrated(true)
+    }, 1000)
+
+    return () => {
+      unsubscribe()
+      clearTimeout(timeout)
+    }
   }, [])
 
   if (!isHydrated) {

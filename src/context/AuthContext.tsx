@@ -2,7 +2,6 @@ import { createContext, useContext, ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '../store/auth';
 import { apiClient } from '@/services/api';
-import Cookies from 'js-cookie';
 
 interface User {
   id: string;
@@ -36,29 +35,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Verifica o token ao inicializar
   useEffect(() => {
     const checkAuth = async () => {
+      // Em desenvolvimento, permite acesso total
       if (isDevelopment) {
         store.setIsLoading(false);
         return;
       }
-      const token = Cookies.get('access_token');
-      if (!token) {
-        store.logout();
+
+      // Se já tem user, token e isAuthenticated no store, verifica se o token ainda é válido
+      if (store.user && store.token && store.isAuthenticated) {
+        try {
+          store.setIsLoading(true);
+          await apiClient.verifyToken();
+          store.setIsLoading(false);
+        } catch (error) {
+          console.error('Token verification failed:', error);
+          store.logout();
+          router.push('/login');
+        }
         return;
       }
-      try {
-        store.setIsLoading(true);
-        const response = await apiClient.verifyToken();
-        store.login(token, response.user);
-      } catch (error) {
-        console.error('Token verification failed:', error);
-        Cookies.remove('access_token');
-        store.logout();
-        router.push('/login');
-      } finally {
-        store.setIsLoading(false);
-      }
+
+      // Se não tem dados completos, faz logout
+      store.logout();
+      store.setIsLoading(false);
     };
-    checkAuth();
+
+    // Aguarda um pouco para garantir que o store foi hidratado
+    const timeout = setTimeout(checkAuth, 100);
+    return () => clearTimeout(timeout);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -69,15 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: store.isAuthenticated, 
         isLoading: store.isLoading,
         login: (token: string, user: User) => {
-          console.log('🏪 AuthContext login called with:', { token, user });
           store.login(token, user);
-          console.log('🏪 AuthContext state after login:', { 
-            isAuthenticated: store.isAuthenticated, 
-            user: store.user 
-          });
         },
         logout: () => {
-          Cookies.remove('access_token');
           store.logout();
           router.push('/login');
         },

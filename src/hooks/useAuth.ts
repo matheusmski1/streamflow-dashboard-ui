@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import { useRouter } from 'next/router'
 import { useAuthStore } from '../store/auth'
 
 // Rotas públicas que não requerem autenticação
@@ -10,7 +10,6 @@ const isDevelopment = process.env.NODE_ENV === 'development'
 
 export const useAuth = (requireAuth: boolean = true) => {
   const router = useRouter()
-  const pathname = usePathname()
   const { user, isAuthenticated } = useAuthStore()
 
   useEffect(() => {
@@ -19,6 +18,7 @@ export const useAuth = (requireAuth: boolean = true) => {
       return
     }
 
+    const pathname = router.pathname
     const isPublicRoute = PUBLIC_ROUTES.includes(pathname)
 
     // Se requer autenticação e não está autenticado
@@ -32,7 +32,7 @@ export const useAuth = (requireAuth: boolean = true) => {
       router.replace('/dashboard')
       return
     }
-  }, [isAuthenticated, pathname, requireAuth, router])
+  }, [isAuthenticated, router.pathname, requireAuth, router])
 
   return {
     user,
