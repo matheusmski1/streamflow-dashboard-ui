@@ -35,22 +35,40 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
   const [hasAttemptedConnection, setHasAttemptedConnection] = useState(false);
   const { user, isDevelopmentMode } = useAuth();
 
-  // Process external events (from Corinthians generator)
+  // Função para adicionar eventos externos (usada pelo Corinthians generator)
+  const addExternalEvent = useCallback((event: StreamEvent) => {
+    setEvents(prevEvents => {
+      const newEvents = [event, ...prevEvents.slice(0, 99)];
+      return newEvents;
+    });
+  }, []);
+
+  // Expõe a função via ref
+  useImperativeHandle(ref, () => ({
+    addEvent: addExternalEvent
+  }), [addExternalEvent]);
+
+  // Cleanup ao desmontar
+  const disconnectFromStream = useCallback(() => {
+    if (streamSource) {
+      streamSource.disconnect();
+      setStreamSource(null);
+      setIsConnected(false);
+    }
+  }, [streamSource]);
+
+  useEffect(() => {
+    return () => disconnectFromStream();
+  }, [disconnectFromStream]);
+
+  // Processa eventos externos
   useEffect(() => {
     if (externalEvents.length > 0) {
-      console.log('🎯 StreamTable: Processing external events:', externalEvents.length);
-      
       externalEvents.forEach((externalEvent) => {
-        console.log('🎯 StreamTable: Adding external event to stream:', externalEvent);
-        
-        // Adiciona o evento ao streaming local
         setEvents(prevEvents => {
           const newEvents = [externalEvent, ...prevEvents.slice(0, 99)];
-          console.log('🎯 StreamTable: Updated events array with external event:', newEvents.length);
           return newEvents;
         });
-        
-        // Notifica o callback se fornecido
         if (onEventReceived) {
           onEventReceived(externalEvent);
         }
@@ -58,207 +76,7 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
     }
   }, [externalEvents, onEventReceived]);
 
-  // Função para adicionar eventos externos (usada pelo Corinthians generator)
-  const addExternalEvent = (event: StreamEvent) => {
-    console.log('🎯 StreamTable: Adding external event:', event);
-    setEvents(prevEvents => {
-      const newEvents = [event, ...prevEvents.slice(0, 99)];
-      console.log('🎯 StreamTable: Updated events array with external event:', newEvents.length);
-      return newEvents;
-    });
-  };
-
-  // Expõe a função via ref
-  useImperativeHandle(ref, () => ({
-    addEvent: addExternalEvent
-  }));
-
-  const disconnectFromStream = useCallback(() => {
-    if (streamSource) {
-      console.log('🔌 StreamTable: Disconnecting from stream...');
-      streamSource.disconnect();
-      setStreamSource(null);
-      setIsConnected(false);
-      console.log('🔌 StreamTable: Disconnected from stream');
-    }
-  }, [streamSource]);
-
-  // Only disconnect when component unmounts
-  useEffect(() => {
-    return () => disconnectFromStream();
-  }, [disconnectFromStream]);
-
-  // When filters change, only reconnect if already connected
-  useEffect(() => {
-    if (isConnected && hasAttemptedConnection) {
-      handleRefresh();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showUserOnly, eventTypeFilter]);
-
-  const connectToStream = useCallback(async () => {
-    try {
-      console.log('🚀 StreamTable: Starting connection process...');
-      console.log('🚀 StreamTable: Development mode:', isDevelopmentMode);
-      console.log('🚀 StreamTable: User info:', user);
-      
-      setIsLoading(true);
-      setConnectionAttempts(prev => prev + 1);
-      setHasAttemptedConnection(true);
-
-      // Primeiro tenta fazer ping no serviço de stream
-      if (!isDevelopmentMode) {
-        console.log('🏓 StreamTable: Attempting to ping stream service...');
-        try {
-          const pingResult = await apiClient.pingStream();
-          console.log('🏓 StreamTable: Ping successful:', pingResult);
-        } catch (error) {
-          console.warn('🏓 StreamTable: Stream service ping failed:', error);
-          console.warn('🏓 StreamTable: This might indicate the stream service is not available');
-          setIsLoading(false);
-          return;
-        }
-      }
-      
-      if (isDevelopmentMode) {
-        console.log('🎭 StreamTable: Running in development mode, using mock data');
-        // Simula conexão em desenvolvimento
-        setIsConnected(true);
-        setIsLoading(false);
-        
-        // Simula alguns eventos
-        const mockEvents: StreamEvent[] = [
-          {
-            id: 'dev-event-1',
-            timestamp: new Date().toISOString(),
-            eventType: 'USER_ACTION',
-            userId: user?.id || 'dev-user',
-            action: 'order_created',
-            value: 299.99,
-            location: 'dashboard',
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 'dev-event-2',
-            timestamp: new Date(Date.now() - 30000).toISOString(),
-            eventType: 'SYSTEM_EVENT',
-            userId: user?.id || 'dev-user',
-            action: 'user_login',
-            value: 1,
-            location: 'auth',
-            createdAt: new Date(Date.now() - 30000).toISOString(),
-          },
-          {
-            id: 'dev-event-3',
-            timestamp: new Date(Date.now() - 60000).toISOString(),
-            eventType: 'ERROR',
-            userId: user?.id || 'dev-user',
-            action: 'api_error',
-            value: 500,
-            location: 'orders',
-            createdAt: new Date(Date.now() - 60000).toISOString(),
-          }
-        ];
-        console.log('🎭 StreamTable: Setting mock events:', mockEvents);
-        setEvents(mockEvents);
-        return;
-      }
-
-      console.log('🔌 StreamTable: Setting up real SSE connection...');
-      // Conexão real usando SSE
-      const streamOptions = {
-        type: eventTypeFilter !== 'all' ? eventTypeFilter : undefined,
-        userOnly: showUserOnly
-      };
-      
-      console.log('🔌 StreamTable: Stream options:', streamOptions);
-
-      const eventSource = new StreamEventSource();
-      setStreamSource(eventSource);
-
-      eventSource.connect(
-        (event) => {
-          try {
-            console.log('📨 StreamTable: Received SSE event raw data:', event.data);
-            console.log('📨 StreamTable: Event type:', event.type);
-            console.log('📨 StreamTable: Event origin:', event.origin);
-            
-            // O event.data vem como string do SSE, pode ter diferentes formatos
-            let jsonString = event.data;
-            if (typeof jsonString === 'string') {
-              // Remove prefixos comuns do SSE
-              if (jsonString.startsWith('data: ')) {
-                jsonString = jsonString.substring(6); // Remove "data: "
-              } else if (jsonString.startsWith('data:')) {
-                jsonString = jsonString.substring(5); // Remove "data:"
-              }
-              
-              // Remove quebras de linha, tabs e espaços extras
-              jsonString = jsonString.replace(/[\r\n\t]/g, '').trim();
-              
-              // Se ainda tem prefixo de data, tenta extrair apenas o JSON
-              const jsonMatch = jsonString.match(/\{.*\}/);
-              if (jsonMatch) {
-                jsonString = jsonMatch[0];
-              }
-            }
-            
-            console.log('📨 StreamTable: Processed JSON string:', jsonString);
-            
-            const eventData = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
-            const streamEvent: StreamEvent = eventData;
-            console.log('📨 StreamTable: Successfully parsed stream event:', streamEvent);
-            
-            // Adiciona o evento à lista
-            setEvents(prevEvents => {
-              const newEvents = [streamEvent, ...prevEvents.slice(0, 99)];
-              console.log('📨 StreamTable: Updated events array:', newEvents.length);
-              return newEvents;
-            });
-            
-            // Atualiza estatísticas
-            setStats(prevStats => {
-              const newStats = {
-                ...prevStats,
-                totalEvents: prevStats.totalEvents + 1,
-                errorRate: streamEvent.eventType === 'ERROR' ? 
-                  ((prevStats.errorRate * prevStats.totalEvents + 1) / (prevStats.totalEvents + 1)) : 
-                  prevStats.errorRate
-              };
-              console.log('📊 StreamTable: Updated stats:', newStats);
-              return newStats;
-            });
-            
-            // Notifica callback se fornecido
-            if (onEventReceived) {
-              onEventReceived(streamEvent);
-            }
-            
-          } catch (parseError) {
-            console.error('❌ StreamTable: Error parsing SSE event:', parseError);
-            console.error('❌ StreamTable: Raw event data:', event.data);
-          }
-        },
-        (error) => {
-          console.error('❌ StreamTable: SSE connection error:', error);
-          setIsConnected(false);
-          setIsLoading(false);
-        },
-        () => {
-          console.log('✅ StreamTable: SSE connection established');
-          setIsConnected(true);
-          setIsLoading(false);
-        },
-        streamOptions
-      );
-      
-    } catch (error) {
-      console.error('❌ StreamTable: Error in connection process:', error);
-      setIsLoading(false);
-    }
-  }, [isDevelopmentMode, user, eventTypeFilter, showUserOnly, onEventReceived]);
-
-  // Update stats when events change
+  // Atualiza estatísticas quando eventos mudam
   useEffect(() => {
     if (events.length === 0) {
       setStats({
@@ -269,15 +87,10 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
       });
       return;
     }
-
     const now = Date.now();
-    const recentEvents = events.filter(event => 
-      now - new Date(event.timestamp).getTime() < 60000 // Last minute
-    );
-
+    const recentEvents = events.filter(event => now - new Date(event.timestamp).getTime() < 60000);
     const uniqueUsers = new Set(events.map(e => e.userId));
     const errorEvents = events.filter(e => e.eventType === 'ERROR');
-
     setStats({
       totalEvents: events.length,
       eventsPerSecond: recentEvents.length / 60,
@@ -286,32 +99,99 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
     });
   }, [events]);
 
-  const handleConnect = () => {
-    console.log('🔗 StreamTable: Handle connect triggered');
-    console.log('🔗 StreamTable: Current connection state:', { isConnected, isLoading });
+  // Conexão
+  const connectToStream = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setConnectionAttempts(prev => prev + 1);
+      setHasAttemptedConnection(true);
+      if (!isDevelopmentMode) {
+        try {
+          await apiClient.pingStream();
+        } catch (error) {
+          setIsLoading(false);
+          return;
+        }
+      }
+      if (isDevelopmentMode) {
+        setIsConnected(true);
+        setIsLoading(false);
+        setEvents([
+          {
+            id: 'dev-event-1',
+            timestamp: new Date().toISOString(),
+            eventType: 'USER_ACTION',
+            userId: user?.id || 'dev-user',
+            action: 'order_created',
+            value: 299.99,
+            location: 'dashboard',
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+        return;
+      }
+      const streamOptions = {
+        type: eventTypeFilter !== 'all' ? eventTypeFilter : undefined,
+        userOnly: showUserOnly
+      };
+      const eventSource = new StreamEventSource();
+      setStreamSource(eventSource);
+      eventSource.connect(
+        (event) => {
+          try {
+            let jsonString = event.data;
+            if (typeof jsonString === 'string') {
+              if (jsonString.startsWith('data: ')) {
+                jsonString = jsonString.substring(6);
+              } else if (jsonString.startsWith('data:')) {
+                jsonString = jsonString.substring(5);
+              }
+              jsonString = jsonString.replace(/\r|\n|\t/g, '').trim();
+              const jsonMatch = jsonString.match(/\{.*\}/);
+              if (jsonMatch) {
+                jsonString = jsonMatch[0];
+              }
+            }
+            const eventData = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
+            const streamEvent: StreamEvent = eventData;
+            setEvents(prevEvents => [streamEvent, ...prevEvents.slice(0, 99)]);
+            if (onEventReceived) {
+              onEventReceived(streamEvent);
+            }
+          } catch {}
+        },
+        () => setIsConnected(false),
+        () => {
+          setIsConnected(true);
+          setIsLoading(false);
+        },
+        streamOptions
+      );
+    } catch {
+      setIsLoading(false);
+    }
+  }, [isDevelopmentMode, user, eventTypeFilter, showUserOnly, onEventReceived]);
+
+  // Handlers
+  const handleConnect = useCallback(() => {
     if (!isConnected && !isLoading) {
-      console.log('🔗 StreamTable: Starting connection...');
       setConnectionAttempts(0);
       connectToStream();
-    } else {
-      console.log('🔗 StreamTable: Connection already in progress or connected');
     }
-  };
+  }, [isConnected, isLoading, connectToStream]);
 
-  const handleRefresh = () => {
-    console.log('🔄 StreamTable: Handle refresh triggered');
+  const handleRefresh = useCallback(() => {
     disconnectFromStream();
     setConnectionAttempts(0);
     connectToStream();
-  };
+  }, [disconnectFromStream, connectToStream]);
 
-  const handleDisconnect = () => {
-    console.log('🔌 StreamTable: Handle disconnect triggered');
+  const handleDisconnect = useCallback(() => {
     disconnectFromStream();
     setConnectionAttempts(0);
-  };
+  }, [disconnectFromStream]);
 
-  const handleClearEvents = () => {
+  const handleClearEvents = useCallback(() => {
     setEvents([]);
     setStats({
       totalEvents: 0,
@@ -319,7 +199,7 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
       activeUsers: 0,
       errorRate: 0
     });
-  };
+  }, []);
 
   const getEventTypeColor = (eventType: string) => {
     const colors = {
