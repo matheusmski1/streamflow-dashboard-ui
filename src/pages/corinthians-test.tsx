@@ -8,9 +8,11 @@ export default function CorinthiansTestPage() {
     <Layout>
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">⚽ Corinthians Event Generator</h1>
-          <p className="text-gray-600">
-            Gera eventos de teste com tema do Corinthians e envia para SQS durante 20 segundos
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">
+            Corinthians Test Events
+          </h1>
+          <p className="text-gray-600 mb-8">
+            Teste de eventos do Corinthians e streaming em tempo real
           </p>
         </div>
         
@@ -38,8 +40,8 @@ export default function CorinthiansTestPage() {
         <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
           <h3 className="text-sm font-medium text-blue-800 mb-2">🎯 Como usar:</h3>
           <div className="text-sm text-blue-700 space-y-1">
-            <p>1. <strong>Conecte ao streaming</strong> clicando em "Connect" na seção de streaming</p>
-            <p>2. <strong>Clique em "Simular Partida vs Flamengo"</strong> para gerar eventos</p>
+            <p>1. <strong>Conecte ao streaming</strong> clicando em &quot;Connect&quot; na seção de streaming</p>
+            <p>2. <strong>Clique em &quot;Simular Partida vs Flamengo&quot;</strong> para gerar eventos</p>
             <p>3. <strong>Os eventos serão enviados para SQS</strong> durante 20 segundos (1 por segundo)</p>
             <p>4. <strong>Veja os eventos aparecerem</strong> no streaming conforme chegam via SQS</p>
             <p>5. <strong>Acompanhe as estatísticas</strong> e logs detalhados</p>

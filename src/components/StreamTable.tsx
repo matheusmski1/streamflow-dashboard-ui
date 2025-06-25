@@ -35,19 +35,6 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
   const [hasAttemptedConnection, setHasAttemptedConnection] = useState(false);
   const { user, isDevelopmentMode } = useAuth();
 
-  // Only disconnect when component unmounts
-  useEffect(() => {
-    return () => disconnectFromStream();
-  }, []);
-
-  // When filters change, only reconnect if already connected
-  useEffect(() => {
-    if (isConnected && hasAttemptedConnection) {
-      handleRefresh();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showUserOnly, eventTypeFilter]);
-
   // Process external events (from Corinthians generator)
   useEffect(() => {
     if (externalEvents.length > 0) {
@@ -86,7 +73,30 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
     addEvent: addExternalEvent
   }));
 
-  const connectToStream = async () => {
+  const disconnectFromStream = useCallback(() => {
+    if (streamSource) {
+      console.log('🔌 StreamTable: Disconnecting from stream...');
+      streamSource.disconnect();
+      setStreamSource(null);
+      setIsConnected(false);
+      console.log('🔌 StreamTable: Disconnected from stream');
+    }
+  }, [streamSource]);
+
+  // Only disconnect when component unmounts
+  useEffect(() => {
+    return () => disconnectFromStream();
+  }, [disconnectFromStream]);
+
+  // When filters change, only reconnect if already connected
+  useEffect(() => {
+    if (isConnected && hasAttemptedConnection) {
+      handleRefresh();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showUserOnly, eventTypeFilter]);
+
+  const connectToStream = useCallback(async () => {
     try {
       console.log('🚀 StreamTable: Starting connection process...');
       console.log('🚀 StreamTable: Development mode:', isDevelopmentMode);
@@ -198,56 +208,55 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
             const eventData = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
             const streamEvent: StreamEvent = eventData;
             console.log('📨 StreamTable: Successfully parsed stream event:', streamEvent);
-            console.log('📨 StreamTable: Event value:', streamEvent.value, 'Type:', typeof streamEvent.value);
             
+            // Adiciona o evento à lista
             setEvents(prevEvents => {
               const newEvents = [streamEvent, ...prevEvents.slice(0, 99)];
-              console.log('📨 StreamTable: Updated events array length:', newEvents.length);
+              console.log('📨 StreamTable: Updated events array:', newEvents.length);
               return newEvents;
             });
-          } catch (error) {
-            console.error('❌ StreamTable: Error parsing stream event:', error);
-            console.error('❌ StreamTable: Raw data type:', typeof event.data);
-            console.error('❌ StreamTable: Raw data content:', event.data);
-            console.error('❌ StreamTable: Raw data length:', event.data?.length);
+            
+            // Atualiza estatísticas
+            setStats(prevStats => {
+              const newStats = {
+                ...prevStats,
+                totalEvents: prevStats.totalEvents + 1,
+                errorRate: streamEvent.eventType === 'ERROR' ? 
+                  ((prevStats.errorRate * prevStats.totalEvents + 1) / (prevStats.totalEvents + 1)) : 
+                  prevStats.errorRate
+              };
+              console.log('📊 StreamTable: Updated stats:', newStats);
+              return newStats;
+            });
+            
+            // Notifica callback se fornecido
+            if (onEventReceived) {
+              onEventReceived(streamEvent);
+            }
+            
+          } catch (parseError) {
+            console.error('❌ StreamTable: Error parsing SSE event:', parseError);
+            console.error('❌ StreamTable: Raw event data:', event.data);
           }
         },
         (error) => {
-          console.error('❌ StreamTable: Stream error callback triggered:', error);
+          console.error('❌ StreamTable: SSE connection error:', error);
           setIsConnected(false);
           setIsLoading(false);
-          // Manual reconnection only - no automatic retry
         },
         () => {
-          console.log('✅ StreamTable: Stream connection opened successfully');
+          console.log('✅ StreamTable: SSE connection established');
           setIsConnected(true);
           setIsLoading(false);
-          setConnectionAttempts(0);
         },
         streamOptions
       );
       
     } catch (error) {
-      console.error('💥 StreamTable: Failed to connect to stream:', error);
-      console.error('💥 StreamTable: Error details:', {
-        name: (error as Error).name,
-        message: (error as Error).message,
-        stack: (error as Error).stack
-      });
-      setIsConnected(false);
+      console.error('❌ StreamTable: Error in connection process:', error);
       setIsLoading(false);
     }
-  };
-
-  const disconnectFromStream = () => {
-    console.log('🔌 StreamTable: Disconnecting from stream...');
-    if (streamSource) {
-      streamSource.disconnect();
-      setStreamSource(null);
-    }
-    setIsConnected(false);
-    console.log('🔌 StreamTable: Disconnection completed');
-  };
+  }, [isDevelopmentMode, user, eventTypeFilter, showUserOnly, onEventReceived]);
 
   // Update stats when events change
   useEffect(() => {
@@ -345,6 +354,21 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
     }
     return true;
   });
+
+  useEffect(() => {
+    if (isConnected) {
+      console.log('🔄 StreamTable: Conectando ao stream...');
+      connectToStream();
+    } else {
+      console.log('🔌 StreamTable: Desconectando do stream...');
+      disconnectFromStream();
+    }
+
+    return () => {
+      console.log('🧹 StreamTable: Cleanup - desconectando do stream');
+      disconnectFromStream();
+    };
+  }, [isConnected, connectToStream, disconnectFromStream]);
 
   return (
     <div className="space-y-6">

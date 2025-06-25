@@ -1,27 +1,26 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Zap, Circle, Trophy, Users, Target, RefreshCw, Package } from 'lucide-react';
-import { StreamEvent, apiClient } from '@/services/api';
+import { StreamEvent, apiClient, CreateOrderDto } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 
 interface CorinthiansEvent {
   id: string;
+  player: string;
+  action: string;
+  location: string;
+  value: number;
+  userId: string;
   timestamp: string;
   eventType: 'USER_ACTION' | 'SYSTEM_EVENT' | 'ERROR' | 'WARNING';
-  userId: string;
-  action: string;
-  value: number;
-  location: string;
   createdAt: string;
 }
 
 interface MatchEvent {
   minute: number;
-  event: string;
-  type: 'USER_ACTION' | 'SYSTEM_EVENT' | 'ERROR' | 'WARNING';
-  value: number;
   description: string;
+  event: CorinthiansEvent;
 }
 
 const CorinthiansTestEvents: React.FC = () => {
@@ -71,37 +70,471 @@ const CorinthiansTestEvents: React.FC = () => {
 
   // Eventos cronológicos de uma partida
   const matchEvents: MatchEvent[] = [
-    { minute: 0, event: 'partida_iniciada', type: 'SYSTEM_EVENT', value: 1, description: 'Apito inicial - Corinthians vs Flamengo' },
-    { minute: 2, event: 'falta_cometida', type: 'USER_ACTION', value: 1, description: 'Falta de Rodrigo Garro em Arrascaeta' },
-    { minute: 5, event: 'chute_no_gol', type: 'USER_ACTION', value: 1, description: 'Chute de Yuri Alberto defendido por Rossi' },
-    { minute: 8, event: 'cartao_amarelo', type: 'WARNING', value: 1, description: 'Cartão amarelo para Félix Torres' },
-    { minute: 12, event: 'gol_marcado', type: 'USER_ACTION', value: 1, description: 'GOL DO CORINTHIANS! Yuri Alberto (assistência: Rodrigo Garro)' },
-    { minute: 15, event: 'assistencia', type: 'USER_ACTION', value: 1, description: 'Assistência de Rodrigo Garro para o gol' },
-    { minute: 18, event: 'defesa_importante', type: 'USER_ACTION', value: 1, description: 'Defesa milagrosa de Hugo Souza em Gabigol' },
-    { minute: 22, event: 'falta_sofrida', type: 'USER_ACTION', value: 1, description: 'Falta sofrida por Yuri Alberto' },
-    { minute: 25, event: 'escanteio', type: 'USER_ACTION', value: 1, description: 'Escanteio a favor do Corinthians' },
-    { minute: 28, event: 'chute_para_fora', type: 'USER_ACTION', value: 1, description: 'Chute de Memphis Depay para fora' },
-    { minute: 32, event: 'gol_marcado', type: 'USER_ACTION', value: 1, description: 'GOL DO FLAMENGO! Gabigol (assistência: Arrascaeta)' },
-    { minute: 35, event: 'cartao_amarelo', type: 'WARNING', value: 1, description: 'Cartão amarelo para André Ramalho' },
-    { minute: 38, event: 'substituicao', type: 'SYSTEM_EVENT', value: 1, description: 'Substituição: Charles sai, Raniele entra' },
-    { minute: 42, event: 'defesa_importante', type: 'USER_ACTION', value: 1, description: 'Defesa de Félix Torres em Pedro' },
-    { minute: 45, event: 'intervalo', type: 'SYSTEM_EVENT', value: 1, description: 'Fim do primeiro tempo - Corinthians 1 x 1 Flamengo' },
-    { minute: 47, event: 'partida_iniciada', type: 'SYSTEM_EVENT', value: 1, description: 'Início do segundo tempo' },
-    { minute: 50, event: 'chute_no_gol', type: 'USER_ACTION', value: 1, description: 'Chute de Ángel Romero defendido por Rossi' },
-    { minute: 53, event: 'gol_marcado', type: 'USER_ACTION', value: 1, description: 'GOL DO CORINTHIANS! Memphis Depay (assistência: Ángel Romero)' },
-    { minute: 55, event: 'assistencia', type: 'USER_ACTION', value: 1, description: 'Assistência de Ángel Romero para o gol' },
-    { minute: 58, event: 'cartao_vermelho', type: 'ERROR', value: 1, description: 'Cartão vermelho para Félix Torres' },
-    { minute: 60, event: 'substituicao', type: 'SYSTEM_EVENT', value: 1, description: 'Substituição: Yuri Alberto sai, Kayke entra' },
-    { minute: 65, event: 'defesa_milagrosa', type: 'USER_ACTION', value: 1, description: 'Defesa milagrosa de Hugo Souza em Arrascaeta' },
-    { minute: 68, event: 'gol_perdido', type: 'USER_ACTION', value: 1, description: 'Gol perdido por Kayke' },
-    { minute: 72, event: 'substituicao', type: 'SYSTEM_EVENT', value: 1, description: 'Substituição: Memphis Depay sai, Igor Coronado entra' },
-    { minute: 75, event: 'gol_marcado', type: 'USER_ACTION', value: 1, description: 'GOL DO FLAMENGO! Pedro (assistência: Everton Ribeiro)' },
-    { minute: 78, event: 'cartao_amarelo', type: 'WARNING', value: 1, description: 'Cartão amarelo para Diego Palacios' },
-    { minute: 82, event: 'defesa_importante', type: 'USER_ACTION', value: 1, description: 'Defesa de André Ramalho em Gabigol' },
-    { minute: 85, event: 'substituicao', type: 'SYSTEM_EVENT', value: 1, description: 'Substituição: Rodrigo Garro sai, Maycon entra' },
-    { minute: 88, event: 'chute_para_fora', type: 'USER_ACTION', value: 1, description: 'Chute de Igor Coronado para fora' },
-    { minute: 90, event: 'partida_finalizada', type: 'SYSTEM_EVENT', value: 1, description: 'Fim da partida - Corinthians 2 x 2 Flamengo' },
-    { minute: 91, event: 'empate', type: 'SYSTEM_EVENT', value: 1, description: 'Resultado final: Empate 2x2' }
+    { 
+      minute: 0, 
+      description: 'Apito inicial - Corinthians vs Flamengo',
+      event: {
+        id: 'match-0',
+        player: 'Árbitro',
+        action: 'partida_iniciada',
+        location: 'Neo Química Arena',
+        value: 1,
+        userId: 'arbitro',
+        timestamp: new Date().toISOString(),
+        eventType: 'SYSTEM_EVENT',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 2, 
+      description: 'Falta de Rodrigo Garro em Arrascaeta',
+      event: {
+        id: 'match-2',
+        player: 'Rodrigo Garro',
+        action: 'falta_cometida',
+        location: 'Meio-campo',
+        value: 1,
+        userId: 'rodrigo-garro',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 5, 
+      description: 'Chute de Yuri Alberto defendido por Rossi',
+      event: {
+        id: 'match-5',
+        player: 'Yuri Alberto',
+        action: 'chute_no_gol',
+        location: 'Área do Flamengo',
+        value: 1,
+        userId: 'yuri-alberto',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 8, 
+      description: 'Cartão amarelo para Félix Torres',
+      event: {
+        id: 'match-8',
+        player: 'Félix Torres',
+        action: 'cartao_amarelo',
+        location: 'Defesa',
+        value: 1,
+        userId: 'felix-torres',
+        timestamp: new Date().toISOString(),
+        eventType: 'WARNING',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 12, 
+      description: 'GOL DO CORINTHIANS! Yuri Alberto (assistência: Rodrigo Garro)',
+      event: {
+        id: 'match-12',
+        player: 'Yuri Alberto',
+        action: 'gol_marcado',
+        location: 'Área do Flamengo',
+        value: 100,
+        userId: 'yuri-alberto',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 15, 
+      description: 'Assistência de Rodrigo Garro para o gol',
+      event: {
+        id: 'match-15',
+        player: 'Rodrigo Garro',
+        action: 'assistencia',
+        location: 'Meio-campo',
+        value: 50,
+        userId: 'rodrigo-garro',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 18, 
+      description: 'Defesa milagrosa de Hugo Souza em Gabigol',
+      event: {
+        id: 'match-18',
+        player: 'Hugo Souza',
+        action: 'defesa_importante',
+        location: 'Área do Corinthians',
+        value: 1,
+        userId: 'hugo-souza',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 22, 
+      description: 'Falta sofrida por Yuri Alberto',
+      event: {
+        id: 'match-22',
+        player: 'Yuri Alberto',
+        action: 'falta_sofrida',
+        location: 'Ataque',
+        value: 1,
+        userId: 'yuri-alberto',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 25, 
+      description: 'Escanteio a favor do Corinthians',
+      event: {
+        id: 'match-25',
+        player: 'Árbitro',
+        action: 'escanteio',
+        location: 'Lateral',
+        value: 1,
+        userId: 'arbitro',
+        timestamp: new Date().toISOString(),
+        eventType: 'SYSTEM_EVENT',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 28, 
+      description: 'Chute de Memphis Depay para fora',
+      event: {
+        id: 'match-28',
+        player: 'Memphis Depay',
+        action: 'chute_para_fora',
+        location: 'Área do Corinthians',
+        value: 1,
+        userId: 'memphis-depay',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 32, 
+      description: 'GOL DO FLAMENGO! Gabigol (assistência: Arrascaeta)',
+      event: {
+        id: 'match-32',
+        player: 'Gabigol',
+        action: 'gol_marcado',
+        location: 'Área do Corinthians',
+        value: 100,
+        userId: 'gabigol',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 35, 
+      description: 'Cartão amarelo para André Ramalho',
+      event: {
+        id: 'match-35',
+        player: 'André Ramalho',
+        action: 'cartao_amarelo',
+        location: 'Defesa',
+        value: 1,
+        userId: 'andre-ramalho',
+        timestamp: new Date().toISOString(),
+        eventType: 'WARNING',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 38, 
+      description: 'Substituição: Charles sai, Raniele entra',
+      event: {
+        id: 'match-38',
+        player: 'Charles',
+        action: 'substituicao',
+        location: 'Bancos',
+        value: 1,
+        userId: 'charles',
+        timestamp: new Date().toISOString(),
+        eventType: 'SYSTEM_EVENT',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 42, 
+      description: 'Defesa de Félix Torres em Pedro',
+      event: {
+        id: 'match-42',
+        player: 'Félix Torres',
+        action: 'defesa_importante',
+        location: 'Defesa',
+        value: 1,
+        userId: 'felix-torres',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 45, 
+      description: 'Fim do primeiro tempo - Corinthians 1 x 1 Flamengo',
+      event: {
+        id: 'match-45',
+        player: 'Árbitro',
+        action: 'intervalo',
+        location: 'Centro',
+        value: 1,
+        userId: 'arbitro',
+        timestamp: new Date().toISOString(),
+        eventType: 'SYSTEM_EVENT',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 47, 
+      description: 'Início do segundo tempo',
+      event: {
+        id: 'match-47',
+        player: 'Árbitro',
+        action: 'partida_iniciada',
+        location: 'Centro',
+        value: 1,
+        userId: 'arbitro',
+        timestamp: new Date().toISOString(),
+        eventType: 'SYSTEM_EVENT',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 50, 
+      description: 'Chute de Ángel Romero defendido por Rossi',
+      event: {
+        id: 'match-50',
+        player: 'Ángel Romero',
+        action: 'chute_no_gol',
+        location: 'Área do Flamengo',
+        value: 1,
+        userId: 'angel-romero',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 53, 
+      description: 'GOL DO CORINTHIANS! Memphis Depay (assistência: Ángel Romero)',
+      event: {
+        id: 'match-53',
+        player: 'Memphis Depay',
+        action: 'gol_marcado',
+        location: 'Área do Flamengo',
+        value: 100,
+        userId: 'memphis-depay',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 55, 
+      description: 'Assistência de Ángel Romero para o gol',
+      event: {
+        id: 'match-55',
+        player: 'Ángel Romero',
+        action: 'assistencia',
+        location: 'Meio-campo',
+        value: 50,
+        userId: 'angel-romero',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 58, 
+      description: 'Cartão vermelho para Félix Torres',
+      event: {
+        id: 'match-58',
+        player: 'Félix Torres',
+        action: 'cartao_vermelho',
+        location: 'Defesa',
+        value: 1,
+        userId: 'felix-torres',
+        timestamp: new Date().toISOString(),
+        eventType: 'ERROR',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 60, 
+      description: 'Substituição: Yuri Alberto sai, Kayke entra',
+      event: {
+        id: 'match-60',
+        player: 'Yuri Alberto',
+        action: 'substituicao',
+        location: 'Bancos',
+        value: 1,
+        userId: 'yuri-alberto',
+        timestamp: new Date().toISOString(),
+        eventType: 'SYSTEM_EVENT',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 65, 
+      description: 'Defesa milagrosa de Hugo Souza em Arrascaeta',
+      event: {
+        id: 'match-65',
+        player: 'Hugo Souza',
+        action: 'defesa_milagrosa',
+        location: 'Área do Corinthians',
+        value: 1,
+        userId: 'hugo-souza',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 68, 
+      description: 'Gol perdido por Kayke',
+      event: {
+        id: 'match-68',
+        player: 'Kayke',
+        action: 'gol_perdido',
+        location: 'Área do Flamengo',
+        value: 1,
+        userId: 'kayke',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 72, 
+      description: 'Substituição: Memphis Depay sai, Igor Coronado entra',
+      event: {
+        id: 'match-72',
+        player: 'Memphis Depay',
+        action: 'substituicao',
+        location: 'Bancos',
+        value: 1,
+        userId: 'memphis-depay',
+        timestamp: new Date().toISOString(),
+        eventType: 'SYSTEM_EVENT',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 75, 
+      description: 'GOL DO FLAMENGO! Pedro (assistência: Everton Ribeiro)',
+      event: {
+        id: 'match-75',
+        player: 'Pedro',
+        action: 'gol_marcado',
+        location: 'Área do Corinthians',
+        value: 100,
+        userId: 'pedro',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 78, 
+      description: 'Cartão amarelo para Diego Palacios',
+      event: {
+        id: 'match-78',
+        player: 'Diego Palacios',
+        action: 'cartao_amarelo',
+        location: 'Defesa',
+        value: 1,
+        userId: 'diego-palacios',
+        timestamp: new Date().toISOString(),
+        eventType: 'WARNING',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 82, 
+      description: 'Defesa de André Ramalho em Gabigol',
+      event: {
+        id: 'match-82',
+        player: 'André Ramalho',
+        action: 'defesa_importante',
+        location: 'Defesa',
+        value: 1,
+        userId: 'andre-ramalho',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 85, 
+      description: 'Substituição: Rodrigo Garro sai, Maycon entra',
+      event: {
+        id: 'match-85',
+        player: 'Rodrigo Garro',
+        action: 'substituicao',
+        location: 'Bancos',
+        value: 1,
+        userId: 'rodrigo-garro',
+        timestamp: new Date().toISOString(),
+        eventType: 'SYSTEM_EVENT',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 88, 
+      description: 'Chute de Igor Coronado para fora',
+      event: {
+        id: 'match-88',
+        player: 'Igor Coronado',
+        action: 'chute_para_fora',
+        location: 'Área do Corinthians',
+        value: 1,
+        userId: 'igor-coronado',
+        timestamp: new Date().toISOString(),
+        eventType: 'USER_ACTION',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 90, 
+      description: 'Fim da partida - Corinthians 2 x 2 Flamengo',
+      event: {
+        id: 'match-90',
+        player: 'Árbitro',
+        action: 'partida_finalizada',
+        location: 'Centro',
+        value: 1,
+        userId: 'arbitro',
+        timestamp: new Date().toISOString(),
+        eventType: 'SYSTEM_EVENT',
+        createdAt: new Date().toISOString()
+      }
+    },
+    { 
+      minute: 91, 
+      description: 'Resultado final: Empate 2x2',
+      event: {
+        id: 'match-91',
+        player: 'Sistema',
+        action: 'empate',
+        location: 'Centro',
+        value: 1,
+        userId: 'sistema',
+        timestamp: new Date().toISOString(),
+        eventType: 'SYSTEM_EVENT',
+        createdAt: new Date().toISOString()
+      }
+    }
   ];
 
   const generateCorinthiansEvent = (): CorinthiansEvent => {
@@ -140,6 +573,7 @@ const CorinthiansTestEvents: React.FC = () => {
 
     return {
       id: `corinthians-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      player: randomPlayer,
       timestamp: new Date().toISOString(),
       eventType: randomEventType,
       userId: user?.id || 'corinthians-fan',
@@ -226,11 +660,12 @@ const CorinthiansTestEvents: React.FC = () => {
         
         const event: CorinthiansEvent = {
           id: `match-${Date.now()}-${i}`,
+          player: matchEvent.event.player,
           timestamp: eventTime.toISOString(),
-          eventType: matchEvent.type as 'USER_ACTION' | 'SYSTEM_EVENT' | 'ERROR' | 'WARNING',
+          eventType: matchEvent.event.action as 'USER_ACTION' | 'SYSTEM_EVENT' | 'ERROR' | 'WARNING',
           userId: user?.id || 'corinthians-fan',
-          action: matchEvent.event,
-          value: matchEvent.value,
+          action: matchEvent.event.action,
+          value: matchEvent.event.value,
           location: 'Neo Química Arena',
           createdAt: eventTime.toISOString()
         };
@@ -273,7 +708,7 @@ const CorinthiansTestEvents: React.FC = () => {
             console.log(`📦 CorinthiansTestEvents: Sending event ${eventIndex + 1}/${events.length} to SQS:`, event.action);
             
             // Converte evento para order e envia
-            const matchEvent = matchEvents.find(me => me.event === event.action && me.type === event.eventType);
+            const matchEvent = matchEvents.find(me => me.event.action === event.action && me.event.action as 'USER_ACTION' | 'SYSTEM_EVENT' | 'ERROR' | 'WARNING' === event.eventType);
             const order = convertEventToOrder(event, matchEvent);
             
             // Envia para SQS
@@ -296,17 +731,17 @@ const CorinthiansTestEvents: React.FC = () => {
   };
 
   // Função para converter eventos do Corinthians em orders criativas
-  const convertEventToOrder = (event: CorinthiansEvent, matchEvent: MatchEvent | undefined): any => {
-    const baseOrder = {
+  const convertEventToOrder = (event: CorinthiansEvent, matchEvent: MatchEvent | undefined): CreateOrderDto => {
+    const baseOrder: CreateOrderDto = {
       customer: 'Corinthians FC',
       product: event.action,
-      quantity: event.value,
-      price: 0,
-      status: 'PENDING' as const,
-      title: '',
-      description: matchEvent?.description || `${event.action} por ${event.userId}`,
-      amount: 0,
-      userId: event.userId
+      quantity: 1,
+      price: event.value,
+      status: 'PENDING',
+      title: `${event.player} - ${event.action}`,
+      description: matchEvent ? matchEvent.description : `${event.action} por ${event.player}`,
+      amount: event.value,
+      userId: 'corinthians-fc',
     };
 
     // Mapeia eventos para orders criativas
@@ -609,8 +1044,8 @@ const CorinthiansTestEvents: React.FC = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {lastGenerated.map((event, index) => {
                     // Encontra a descrição correspondente se for um evento de partida
-                    const matchEvent = matchEvents.find(me => me.event === event.action && me.type === event.eventType);
-                    const description = matchEvent?.description || `${event.action} por ${event.userId}`;
+                    const matchEvent = matchEvents.find(me => me.event.action === event.action && me.event.action as 'USER_ACTION' | 'SYSTEM_EVENT' | 'ERROR' | 'WARNING' === event.eventType);
+                    const description = matchEvent?.description || `${event.action} por ${event.player}`;
                     
                     return (
                       <tr 
