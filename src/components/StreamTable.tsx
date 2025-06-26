@@ -1,10 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Activity, TrendingUp, Users, Zap, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-react';
 import StatCard from './StatCard';
 import { StreamEventSource, StreamEvent, apiClient } from '@/services/api';
-import { useAuth } from '@/context/AuthContext';
 
 interface StreamStats {
   totalEvents: number;
@@ -30,12 +29,9 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
   const [isLoading, setIsLoading] = useState(false);
   const streamRef = React.useRef<StreamEventSource | null>(null);
   const [connectionAttempts, setConnectionAttempts] = useState(0);
-  const [showUserOnly, setShowUserOnly] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState<string>('all');
   const [hasAttemptedConnection, setHasAttemptedConnection] = useState(false);
-  const { user, isDevelopmentMode } = useAuth();
 
-  // Função para adicionar eventos externos (usada pelo Corinthians generator)
   const addExternalEvent = useCallback((event: StreamEvent) => {
     setEvents(prevEvents => {
       const newEvents = [event, ...prevEvents.slice(0, 99)];
@@ -43,12 +39,10 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
     });
   }, []);
 
-  // Expõe a função via ref
   useImperativeHandle(ref, () => ({
     addEvent: addExternalEvent
   }), [addExternalEvent]);
 
-  // Cleanup ao desmontar
   const disconnectFromStream = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.disconnect();
@@ -61,7 +55,6 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
     return () => disconnectFromStream();
   }, [disconnectFromStream]);
 
-  // Processa eventos externos
   useEffect(() => {
     if (externalEvents.length > 0) {
       externalEvents.forEach((externalEvent) => {
@@ -76,7 +69,6 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
     }
   }, [externalEvents, onEventReceived]);
 
-  // Atualiza estatísticas quando eventos mudam
   useEffect(() => {
     if (events.length === 0) {
       setStats({
@@ -89,84 +81,65 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
     }
     const now = Date.now();
     const recentEvents = events.filter(event => now - new Date(event.timestamp).getTime() < 60000);
-    const uniqueUsers = new Set(events.map(e => e.userId));
     const errorEvents = events.filter(e => e.eventType === 'ERROR');
     setStats({
       totalEvents: events.length,
       eventsPerSecond: recentEvents.length / 60,
-      activeUsers: uniqueUsers.size,
+      activeUsers: 0,
       errorRate: events.length > 0 ? (errorEvents.length / events.length) * 100 : 0
     });
   }, [events]);
 
-  // Conexão
   const connectToStream = useCallback(async () => {
     try {
       setIsLoading(true);
       setConnectionAttempts(prev => prev + 1);
       setHasAttemptedConnection(true);
-      if (isDevelopmentMode) {
-        setIsConnected(true);
-        setIsLoading(false);
-        setEvents([
-          {
-            id: 'dev-event-1',
-            timestamp: new Date().toISOString(),
-            eventType: 'USER_ACTION',
-            userId: user?.id || 'dev-user',
-            action: 'order_created',
-            value: 299.99,
-            location: 'dashboard',
-            createdAt: new Date().toISOString(),
-          },
-        ]);
-        return;
-      }
+
       const streamOptions = {
         type: eventTypeFilter !== 'all' ? eventTypeFilter : undefined,
-        userOnly: showUserOnly
       };
       const eventSource = new StreamEventSource();
       streamRef.current = eventSource;
+
       eventSource.connect(
         (event) => {
           try {
-            let jsonString = event.data;
-            if (typeof jsonString === 'string') {
-              if (jsonString.startsWith('data: ')) {
-                jsonString = jsonString.substring(6);
-              } else if (jsonString.startsWith('data:')) {
-                jsonString = jsonString.substring(5);
-              }
-              jsonString = jsonString.replace(/\r|\n|\t/g, '').trim();
-              const jsonMatch = jsonString.match(/\{.*\}/);
-              if (jsonMatch) {
-                jsonString = jsonMatch[0];
-              }
+            let raw = event.data?.trim() || '';
+            if (raw.startsWith('data:')) {
+              const braceIndex = raw.indexOf('{');
+              if (braceIndex !== -1) raw = raw.slice(braceIndex);
             }
-            const eventData = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
-            const streamEvent: StreamEvent = eventData;
-            setEvents(prevEvents => [streamEvent, ...prevEvents.slice(0, 99)]);
+            const eventData = JSON.parse(raw) as StreamEvent;
+            setEvents(prevEvents => {
+              const newEvents = [eventData, ...prevEvents.slice(0, 99)];
+              return newEvents;
+            });
             if (onEventReceived) {
-              onEventReceived(streamEvent);
+              onEventReceived(eventData);
             }
           } catch (error) {
-            console.error('❌ Erro ao processar evento SSE:', error);
+            console.error('Failed to parse event data:', error);
           }
         },
-        () => setIsConnected(false),
+        (error) => {
+          console.error('Stream error:', error);
+          setIsConnected(false);
+          setIsLoading(false);
+        },
         () => {
           setIsConnected(true);
           setIsLoading(false);
         },
         streamOptions
       );
-    } catch {
+    } catch (error) {
+      console.error('Failed to connect to stream:', error);
+      setIsConnected(false);
       setIsLoading(false);
     }
-  }, [isDevelopmentMode, user, eventTypeFilter, showUserOnly, onEventReceived]);
+  }, [eventTypeFilter, onEventReceived]);
 
-  // Handlers
   const handleConnect = useCallback(() => {
     if (!isConnected && !isLoading) {
       setConnectionAttempts(0);
@@ -206,7 +179,6 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
   };
 
   const formatEventValue = (value: number | string | undefined, eventType: string) => {
-    // Verificar se value existe e é um número válido
     if (value === undefined || value === null || isNaN(Number(value))) {
       return '0';
     }
@@ -223,24 +195,11 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
     if (eventTypeFilter !== 'all' && event.eventType !== eventTypeFilter) {
       return false;
     }
-    if (showUserOnly && event.userId !== user?.id) {
-      return false;
-    }
     return true;
   });
 
   return (
     <div className="space-y-4">
-      {/* Development Mode Notice */}
-      {isDevelopmentMode && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-          <h3 className="text-sm font-medium text-blue-800 mb-1">🚧 Development Mode Active</h3>
-          <p className="text-xs text-blue-700">
-            Stream functionality is working with mock data. In production, it will connect to the real-time SSE endpoint.
-          </p>
-        </div>
-      )}
-
       {/* Connection Status and Controls */}
       <div className="bg-gray-50 rounded-lg p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
@@ -267,103 +226,50 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
               )}
             </div>
           </div>
-          <div className="flex items-center space-x-2">
-            {!isConnected ? (
-              <button
-                onClick={handleConnect}
-                disabled={isLoading}
-                className="flex items-center space-x-2 px-3 py-1 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
-              >
-                <Wifi size={16} className={isLoading ? 'animate-spin' : ''} />
-                <span>{isLoading ? 'Connecting...' : 'Connect'}</span>
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={handleRefresh}
-                  disabled={isLoading}
-                  className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                >
-                  <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
-                  <span>Refresh</span>
-                </button>
-                <button
-                  onClick={handleDisconnect}
-                  className="flex items-center space-x-2 px-3 py-1 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700"
-                >
-                  <WifiOff size={16} />
-                  <span>Disconnect</span>
-                </button>
-              </>
-            )}
-            <button
-              onClick={handleClearEvents}
-              disabled={events.length === 0}
-              className="flex items-center space-x-2 px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+          <div className="flex items-center space-x-3">
+            <select
+              value={eventTypeFilter}
+              onChange={(e) => setEventTypeFilter(e.target.value)}
+              className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <Trash2 size={16} />
-              <span>Clear</span>
+              <option value="all">All Events</option>
+              <option value="USER_ACTION">User Actions</option>
+              <option value="SYSTEM_EVENT">System Events</option>
+              <option value="ERROR">Errors</option>
+              <option value="WARNING">Warnings</option>
+            </select>
+            <button
+              onClick={isConnected ? disconnectFromStream : connectToStream}
+              className={`px-3 py-1 text-sm font-medium rounded-md ${
+                isConnected
+                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+              }`}
+            >
+              {isConnected ? 'Disconnect' : 'Connect'}
             </button>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="flex items-center space-x-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Event Type</label>
-            <select
-              value={eventTypeFilter}
-              onChange={(e) => setEventTypeFilter(e.target.value)}
-              className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Types</option>
-              <option value="USER_ACTION">User Action</option>
-              <option value="SYSTEM_EVENT">System Event</option>
-              <option value="ERROR">Error</option>
-              <option value="WARNING">Warning</option>
-            </select>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
+            <div className="text-sm font-medium text-gray-500">Total Events</div>
+            <div className="text-lg font-bold text-gray-900">{stats.totalEvents}</div>
           </div>
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="userOnly"
-              checked={showUserOnly}
-              onChange={(e) => setShowUserOnly(e.target.checked)}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label htmlFor="userOnly" className="ml-2 text-sm text-gray-700">
-              My events only
-            </label>
+          <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
+            <div className="text-sm font-medium text-gray-500">Events/Sec</div>
+            <div className="text-lg font-bold text-gray-900">{stats.eventsPerSecond.toFixed(2)}</div>
+          </div>
+          <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
+            <div className="text-sm font-medium text-gray-500">Active Users</div>
+            <div className="text-lg font-bold text-gray-900">{stats.activeUsers}</div>
+          </div>
+          <div className="bg-white p-3 rounded-md shadow-sm border border-gray-200">
+            <div className="text-sm font-medium text-gray-500">Error Rate</div>
+            <div className="text-lg font-bold text-gray-900">{stats.errorRate.toFixed(1)}%</div>
           </div>
         </div>
-      </div>
-
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <StatCard
-          title="Total Events"
-          value={stats.totalEvents.toLocaleString()}
-          icon={<Activity size={18} />}
-          color="blue"
-        />
-        <StatCard
-          title="Events/Second"
-          value={stats.eventsPerSecond ? stats.eventsPerSecond.toFixed(1) : '0.0'}
-          icon={<Zap size={18} />}
-          color="green"
-        />
-        <StatCard
-          title="Active Users"
-          value={stats.activeUsers || 0}
-          icon={<Users size={18} />}
-          color="yellow"
-        />
-        <StatCard
-          title="Error Rate"
-          value={`${stats.errorRate ? stats.errorRate.toFixed(1) : '0.0'}%`}
-          icon={<TrendingUp size={18} />}
-          color="red"
-        />
       </div>
 
       {/* Stream Table */}
@@ -399,9 +305,6 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Location
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User ID
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -426,9 +329,6 @@ const StreamTable = forwardRef<{ addEvent: (event: StreamEvent) => void }, Strea
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     {event.location}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono">
-                    {(event.userId || '').slice(-8)}
                   </td>
                 </tr>
               ))}

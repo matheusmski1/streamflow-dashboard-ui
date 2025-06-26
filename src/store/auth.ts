@@ -1,14 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-
-interface User {
-  id: string
-  email: string
-  name: string
-  role: 'USER' | 'ADMIN'
-  createdAt: string
-  updatedAt: string
-}
+import { User } from '@/services/api'
 
 interface AuthState {
   user: User | null
@@ -17,8 +9,8 @@ interface AuthState {
   isLoading: boolean
   setUser: (user: User | null) => void
   setToken: (token: string | null) => void
-  setIsAuthenticated: (value: boolean) => void
-  setIsLoading: (value: boolean) => void
+  setIsAuthenticated: (isAuthenticated: boolean) => void
+  setIsLoading: (isLoading: boolean) => void
   login: (token: string, user: User) => void
   logout: () => void
 }
@@ -32,13 +24,15 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       setUser: (user) => set({ user }),
       setToken: (token) => set({ token }),
-      setIsAuthenticated: (value) => set({ isAuthenticated: value }),
-      setIsLoading: (value) => set({ isLoading: value }),
+      setIsAuthenticated: (isAuthenticated) => set({ isAuthenticated }),
+      setIsLoading: (isLoading) => set({ isLoading }),
       login: (token, user) => {
-        set({ user, token, isAuthenticated: true, isLoading: false })
+        localStorage.setItem('auth_token', token)
+        set({ token, user, isAuthenticated: true })
       },
       logout: () => {
-        set({ user: null, token: null, isAuthenticated: false, isLoading: false })
+        localStorage.removeItem('auth_token')
+        set({ token: null, user: null, isAuthenticated: false })
       },
     }),
     {

@@ -11,16 +11,14 @@ export default function StoreProvider({ children }: StoreProviderProps) {
   const [isHydrated, setIsHydrated] = useState(false)
 
   useEffect(() => {
-    // Força a hidratação do store
     const unsubscribe = useAuthStore.persist.onFinishHydration(() => {
       console.log('🔄 Zustand store hydrated successfully')
       setIsHydrated(true)
     })
 
-    // Fallback: se não houver hidratação em 1 segundo, marca como hidratado
     const timeout = setTimeout(() => {
       console.log('⏰ Hydration timeout, marking as hydrated')
-      setIsHydrated(true)
+    setIsHydrated(true)
     }, 1000)
 
     return () => {

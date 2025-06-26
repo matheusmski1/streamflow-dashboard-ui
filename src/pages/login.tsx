@@ -5,7 +5,7 @@ import { useRouter } from 'next/router';
 import { useEffect } from 'react';
 
 export default function LoginPage() {
-  const { isAuthenticated } = useAuth(false);
+  const { isAuthenticated } = useAuth();
   const router = useRouter();
 
   useEffect(() => {

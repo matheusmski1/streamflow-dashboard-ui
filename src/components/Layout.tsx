@@ -11,13 +11,11 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, title = 'Dashboard', requireAuth = true }: LayoutProps) {
-  const { isAuthenticated, isLoading } = useAuth(requireAuth);
+  const { isAuthenticated, isLoading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
 
-  // Se requer autenticação e não está carregando mas não está autenticado
-  if (requireAuth && !isLoading && !isAuthenticated) {
-    router.replace('/login');
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -25,8 +23,10 @@ export default function Layout({ children, title = 'Dashboard', requireAuth = tr
     );
   }
 
-  // Mostra loading se ainda está verificando auth
-  if (requireAuth && isLoading) {
+  if (requireAuth && !isAuthenticated) {
+    if (typeof window !== 'undefined') {
+      router.replace('/login');
+    }
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>

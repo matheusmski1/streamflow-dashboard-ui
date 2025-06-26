@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { Package, Circle, RefreshCw } from 'lucide-react';
 import { apiClient, CreateOrderDto } from '@/services/api';
 
-const uuidStatic = 'fe5c2895-26d6-48b8-a529-17aea2d2f4b8';
-
 interface GeneratedOrder extends CreateOrderDto {
   id: string;
   timestamp: string;
@@ -32,7 +30,6 @@ const generateRandomOrder = (): GeneratedOrder => {
     status: 'PENDING',
     title: `${product} x${quantity}`,
     description: `Order of ${quantity} ${product}(s) for ${customer}`,
-    userId: uuidStatic,
   };
 };
 
@@ -84,26 +81,24 @@ const OrdersTestEvents: React.FC = () => {
   const sendToSQSFast = async () => {
     if (orders.length === 0) return;
     setIsSending(true);
-    console.log(`🚀 Iniciando envio rápido de ${orders.length} orders para SQS (2s)`);
-    let index = 0;
-    const interval = setInterval(async () => {
-      if (index >= orders.length) {
-        clearInterval(interval);
-        setIsSending(false);
-        console.log(`✅ Envio rápido concluído: ${index} orders enviadas`);
-        return;
-      }
-      const order = orders[index];
+    console.log(`🚀 Iniciando envio rápido de ${orders.length} orders para SQS...`);
+    
+    let sentCount = 0;
+    for (const order of orders) {
       try {
         const { id, timestamp, ...orderData } = order;
-        console.log(`📤 Enviando order ${index + 1}/${orders.length} (rápido):`, orderData);
+        console.log(`📤 Enviando order ${sentCount + 1}/${orders.length} (rápido):`, orderData);
         const res = await apiClient.createOrder(orderData);
-        console.log(`✅ Order ${index + 1} enviada com sucesso (rápido):`, res.id);
+        console.log(`✅ Order ${sentCount + 1} enviada com sucesso (rápido):`, res.id);
+        sentCount++;
+        await new Promise(r => setTimeout(r, 200));
       } catch (err) {
-        console.error(`❌ Erro ao enviar order ${index + 1} (rápido):`, err);
+        console.error(`❌ Erro ao enviar order ${sentCount + 1} (rápido):`, err);
       }
-      index++;
-    }, 200); // 200ms = 2 segundos para 10 orders
+    }
+    
+    console.log(`✅ Envio rápido concluído: ${sentCount} orders enviadas`);
+    setIsSending(false);
   };
 
   return (

@@ -1,23 +1,15 @@
-// API Configuration and Utilities
-// Configure your API endpoints here
-
 import { useAuthStore } from '@/store/auth';
 
 export const API_CONFIG = {
-  // REST API Base URL - para operações CRUD (Orders, Users, Auth)
   BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1',
   
-  // Streaming Base URL - para Server-Sent Events e WebSocket
   STREAM_BASE_URL: process.env.NEXT_PUBLIC_STREAM_URL || 'http://localhost:3001',
-  
-  // Authentication endpoints (REST API)
-  AUTH: {
+    AUTH: {
     LOGIN: '/auth/login',
     REGISTER: '/auth/register',
     VERIFY: '/auth/verify',
   },
   
-  // Orders endpoints (REST API)
   ORDERS: {
     LIST: '/orders',
     CREATE: '/orders',
@@ -27,7 +19,6 @@ export const API_CONFIG = {
     DELETE: (id: string) => `/orders/${id}`,
   },
   
-  // Users endpoints (REST API)
   USERS: {
     LIST: '/users',
     CREATE: '/users',
@@ -36,23 +27,21 @@ export const API_CONFIG = {
     DELETE: (id: string) => `/users/${id}`,
   },
   
-  // Stream endpoints (Streaming Service)
   STREAM: {
-    EVENTS: '/stream', // Server-Sent Events endpoint
+    EVENTS: '/stream',
     PING: '/stream/ping',
-    WEBSOCKET: '/ws', // WebSocket endpoint (para futuro uso)
+    WEBSOCKET: '/ws',
   },
 };
 
-// Order types
 export interface Order {
   id: string;
   customer: string;
   product: string;
   quantity: number;
   price: number;
+  title?: string;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED';
-  userId: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -66,7 +55,6 @@ export interface CreateOrderDto {
   title: string;
   description?: string;
   amount: number;
-  userId: string;
 }
 
 export interface UpdateOrderDto {
@@ -80,7 +68,6 @@ export interface UpdateOrderDto {
   amount?: number;
 }
 
-// User types
 export interface User {
   id: string;
   email: string;
@@ -101,19 +88,16 @@ export interface RegisterDto {
   password: string;
 }
 
-// Stream types
 export interface StreamEvent {
   id: string;
   timestamp: string;
   eventType: 'USER_ACTION' | 'SYSTEM_EVENT' | 'ERROR' | 'WARNING';
-  userId: string;
   action: string;
   value: number;
   location: string;
   createdAt: string;
 }
 
-// API utility functions
 export class ApiClient {
   private baseURL: string;
 
@@ -122,18 +106,22 @@ export class ApiClient {
   }
 
   private getAuthHeaders(): Record<string, string> {
-    // Pega o token do store Zustand
     const token = useAuthStore.getState().token;
     
     if (token) {
-      return { Authorization: `Bearer ${token}` };
+      return { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      };
     }
     
-    return {};
+    return {
+      'Content-Type': 'application/json'
+    };
   }
 
   private async request<T>(
-    endpoint: string, 
+    endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
@@ -141,7 +129,6 @@ export class ApiClient {
     const config: RequestInit = {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
         ...this.getAuthHeaders(),
         ...options.headers,
       },
@@ -155,14 +142,13 @@ export class ApiClient {
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
 
-      return await response.json();
+      return response.json();
     } catch (error) {
-      console.error(`API request failed: ${url}`, error);
+      console.error('API request failed:', error);
       throw error;
     }
   }
 
-  // Authentication methods
   async login(loginData: LoginDto) {
     return this.request<{ access_token: string; user: User }>(API_CONFIG.AUTH.LOGIN, {
       method: 'POST',
@@ -183,7 +169,6 @@ export class ApiClient {
     });
   }
 
-  // Orders methods
   async getOrders(params?: { page?: number; limit?: number; search?: string }): Promise<{ orders: Order[]; total: number }> {
     try {
       const searchParams = new URLSearchParams();
@@ -233,7 +218,6 @@ export class ApiClient {
     });
   }
 
-  // Users methods
   async getUsers() {
     return this.request<User[]>(API_CONFIG.USERS.LIST);
   }
@@ -262,9 +246,7 @@ export class ApiClient {
     });
   }
 
-  // Stream methods
   async pingStream() {
-    // Ping direto na URL de streaming (não na API REST)
     const streamUrl = `${API_CONFIG.STREAM_BASE_URL}${API_CONFIG.STREAM.PING}`;
     
     console.log('🏓 Attempting to ping stream service...');
@@ -300,16 +282,13 @@ export class ApiClient {
   }
 }
 
-// Default API client instance
 export const apiClient = new ApiClient();
 
-// Server-Sent Events utility
 export class StreamEventSource {
   private eventSource: EventSource | null = null;
   private url: string;
 
   constructor(endpoint: string = API_CONFIG.STREAM.EVENTS) {
-    // Use a URL de streaming separada para SSE
     this.url = `${API_CONFIG.STREAM_BASE_URL}${endpoint}`;
     console.log('🔧 StreamEventSource initialized with URL:', this.url);
     console.log('🔧 API_CONFIG.STREAM_BASE_URL:', API_CONFIG.STREAM_BASE_URL);
@@ -326,7 +305,6 @@ export class StreamEventSource {
       console.log('🚀 Attempting to connect to stream...');
       console.log('🚀 Connection options:', options);
       
-      // Add auth token and parameters to URL for SSE
       const token = useAuthStore.getState().token;
       console.log('🔑 Auth token available:', !!token);
       if (token) {
@@ -375,8 +353,7 @@ export class StreamEventSource {
         console.error('❌ Error target:', error.target);
         console.error('❌ EventSource readyState:', this.eventSource?.readyState);
         console.error('❌ EventSource URL:', this.eventSource?.url);
-        
-        // Log more details about the error
+
         if (error.target instanceof EventSource) {
           console.error('❌ EventSource readyState:', error.target.readyState);
           console.error('❌ EventSource URL:', error.target.url);
@@ -422,7 +399,6 @@ export class StreamEventSource {
   }
 }
 
-// Environment validation
 export function validateApiConfig(): boolean {
   const requiredEnvVars = ['NEXT_PUBLIC_API_URL'];
   const missing = requiredEnvVars.filter(envVar => !process.env[envVar]);

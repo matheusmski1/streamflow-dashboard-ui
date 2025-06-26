@@ -4,18 +4,15 @@ import React, { useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import Sidebar from './Sidebar';
 import StreamTable from './StreamTable';
-import { useAuth } from '../context/AuthContext';
 
 const Dashboard: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { isDevelopmentMode } = useAuth();
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
       <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       
       <div className="flex-1 lg:ml-0">
-        {/* Header */}
         <header className="bg-white shadow-sm border-b border-gray-200">
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center space-x-4">
@@ -34,17 +31,7 @@ const Dashboard: React.FC = () => {
           </div>
         </header>
 
-        {/* Main Content */}
         <main className="p-6">
-          {isDevelopmentMode && (
-            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-blue-800 mb-2">🚧 Development Mode Active</h3>
-              <p className="text-sm text-blue-700">
-                You&apos;re currently in development mode with login-only functionality. 
-                Stream data and analytics require backend API configuration.
-              </p>
-            </div>
-          )}
           <StreamTable />
         </main>
       </div>

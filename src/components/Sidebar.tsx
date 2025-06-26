@@ -3,8 +3,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LogOut, Activity, BarChart3, Settings, Package, Zap } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { Activity, Package, BarChart3, Zap, Settings, LogOut } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -12,7 +12,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
-  const { logout, isDevelopmentMode } = useAuth();
+  const { logout } = useAuth();
   const pathname = usePathname();
 
   const handleLogout = () => {
@@ -30,11 +30,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
       name: 'Orders',
       href: '/orders',
       icon: Package,
-    },
-    {
-      name: 'Analytics',
-      href: '/analytics',
-      icon: BarChart3,
     },
     {
       name: 'Test Events',
@@ -65,19 +60,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
         }`}
       >
         <div className="flex items-center justify-center h-16 bg-blue-600">
-          <div className="text-center">
-            <Link href="/dashboard" className="text-white text-xl font-bold hover:text-blue-100 transition-colors">
-              StreamFlow
-            </Link>
-            {isDevelopmentMode && (
-              <div className="text-xs text-blue-200 mt-1">
-                🚧 Dev Mode
-              </div>
-            )}
-          </div>
+          <Link href="/dashboard" className="text-white text-xl font-bold hover:text-blue-100 transition-colors">
+            StreamFlow
+          </Link>
         </div>
 
-        <nav className="mt-8">
+        <nav className="mt-8 flex-1">
           <div className="px-4 space-y-2">
             {navigation.map((item) => {
               const Icon = item.icon;
@@ -93,7 +81,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
                       : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
                   }`}
                   onClick={() => {
-                    // Close sidebar on mobile when link is clicked
                     if (window.innerWidth < 1024) {
                       onToggle();
                     }
@@ -105,8 +92,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
               );
             })}
           </div>
+        </nav>
 
-          <div className="absolute bottom-4 left-4 right-4">
+        <div className="p-4">
             <button
               onClick={handleLogout}
               className="flex items-center w-full px-4 py-2 text-gray-700 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
@@ -114,8 +102,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
               <LogOut className="mr-3" size={20} />
               Logout
             </button>
-          </div>
-        </nav>
+        </div>
       </div>
     </>
   );
